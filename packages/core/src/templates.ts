@@ -133,7 +133,7 @@ export function renderPreset(options: RenderPresetOptions): TemplateFile[] {
     templateFile(".github/ISSUE_TEMPLATE/feature.yml", featureIssueTemplate()),
     templateFile(".github/ISSUE_TEMPLATE/task.yml", taskIssueTemplate()),
     templateFile(".github/pull_request_template.md", pullRequestTemplate()),
-    templateFile(".github/workflows/sdlc-drift.yml", driftWorkflow()),
+    templateFile(".github/workflows/sdlc-drift.yml", driftWorkflow(packageManager)),
   ];
 }
 
@@ -490,7 +490,7 @@ body:
 function pullRequestTemplate(): string {
   return `## Summary
 
-- 
+-
 
 ## Linked Issue
 
@@ -508,7 +508,9 @@ Production verification is required before closing the linked issue when .sdlc/p
 `;
 }
 
-function driftWorkflow(): string {
+function driftWorkflow(packageManager: "bun" | "npm" | "pnpm"): string {
+  const commands = workflowCommands(packageManager);
+
   return `name: SDLC Drift
 
 on:
@@ -524,14 +526,55 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+${commands.setupStep}
 
       - name: Install dependencies
-        run: bun install
+        run: ${commands.install}
 
       - name: Run drift check
-        run: bun run sdlc drift
+        run: |
+${commands.drift}
 `;
+}
+
+function workflowCommands(packageManager: "bun" | "npm" | "pnpm"): {
+  setupStep: string;
+  install: string;
+  drift: string;
+} {
+  if (packageManager === "npm") {
+    return {
+      setupStep: "",
+      install: "npm install",
+      drift: driftCommandBlock("npx --yes sdlc-kit drift"),
+    };
+  }
+
+  if (packageManager === "pnpm") {
+    return {
+      setupStep: "      - name: Enable Corepack\n        run: corepack enable\n",
+      install: "pnpm install",
+      drift: driftCommandBlock("pnpm dlx sdlc-kit drift"),
+    };
+  }
+
+  return {
+    setupStep: "      - name: Set up Bun\n        uses: oven-sh/setup-bun@v2\n",
+    install: "bun install",
+    drift: driftCommandBlock("bunx sdlc-kit drift"),
+  };
+}
+
+function driftCommandBlock(command: string): string {
+  return `          set +e
+          output=$(${command} 2>&1)
+          status=$?
+          echo "$output"
+          if [ "$status" -ne 0 ]; then
+            if echo "$output" | grep -Eiq "ERR_PNPM_FETCH_404|404|not in the npm registry|not found"; then
+              echo "::warning::sdlc-kit is not published or available yet; skipping drift check."
+              exit 0
+            fi
+            exit "$status"
+          fi`;
 }
