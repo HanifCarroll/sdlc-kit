@@ -270,6 +270,65 @@ preview:
     expect(capture.stdout[0]).toContain("pass --force");
     expect(capture.stderr).toEqual([]);
   });
+
+  test("drift reports mapped source changes without docs in warn mode", () => {
+    const projectRoot = createDriftProjectFixture("warn");
+    const capture = createOutputCapture();
+
+    expect(
+      runCli(["drift", "--changed", "src/routes/login.ts"], {
+        cwd: projectRoot,
+        output: capture.output,
+      }),
+    ).toBe(0);
+
+    expect(capture.stdout[0]).toContain("sdlc drift: warning");
+    expect(capture.stdout[0]).toContain("missing-doc-ack");
+    expect(capture.stderr).toEqual([]);
+  });
+
+  test("drift can fail CI on warnings when requested", () => {
+    const projectRoot = createDriftProjectFixture("warn");
+    const capture = createOutputCapture();
+
+    expect(
+      runCli(["drift", "--changed=src/routes/login.ts", "--fail-on-warn"], {
+        cwd: projectRoot,
+        output: capture.output,
+      }),
+    ).toBe(1);
+
+    expect(capture.stdout[0]).toContain("sdlc drift: warning");
+  });
+
+  test("drift accepts no-doc-impact reasons and json output", () => {
+    const projectRoot = createDriftProjectFixture("error");
+    const capture = createOutputCapture();
+
+    expect(
+      runCli(
+        [
+          "drift",
+          "--changed",
+          "src/routes/login.ts",
+          "--no-doc-impact",
+          "Internal rename only; no behavior or docs contract changed.",
+          "--json",
+        ],
+        {
+          cwd: projectRoot,
+          output: capture.output,
+        },
+      ),
+    ).toBe(0);
+
+    const json = capture.stdout[0];
+    expect(json).toBeDefined();
+    expect(JSON.parse(json ?? "")).toMatchObject({
+      status: "pass",
+      mode: "error",
+    });
+  });
 });
 
 function createOutputCapture(): {
@@ -321,6 +380,25 @@ local:
 commands:
   check: bun run check
   test: bun test
+`,
+  );
+  return projectRoot;
+}
+
+function createDriftProjectFixture(mode: "warn" | "error"): string {
+  const projectRoot = mkdtempSync(join(tmpdir(), "sdlc-kit-drift-project-"));
+  mkdirSync(join(projectRoot, ".sdlc"));
+  writeFileSync(
+    join(projectRoot, ".sdlc", "project.yml"),
+    `version: 1
+project: fixture
+drift:
+  mode: ${mode}
+  mappings:
+    - source_paths:
+        - src/routes/**
+      docs:
+        - docs/capabilities/auth.md
 `,
   );
   return projectRoot;

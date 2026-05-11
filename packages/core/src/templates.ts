@@ -223,6 +223,10 @@ function renderProjectManifest(
     local: localConfig(project, definition),
     preview: previewConfig(definition),
     production: productionConfig(definition),
+    drift: {
+      mode: "warn",
+      mappings: [],
+    },
     commands: commandSet(packageManager),
   };
 
@@ -513,13 +517,21 @@ on:
 
 jobs:
   drift:
-    name: Drift placeholder
+    name: Check docs drift
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Report drift check placeholder
-        run: echo "sdlc drift checks are not wired yet"
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run drift check
+        run: bun run sdlc drift
 `;
 }

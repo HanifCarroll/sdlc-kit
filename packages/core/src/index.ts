@@ -39,7 +39,16 @@ export interface SdlcProjectConfig {
     required_before_issue_close?: boolean;
     smoke_paths?: string[];
   };
+  drift?: {
+    mode?: "warn" | "error";
+    mappings?: DriftPathMapping[];
+  };
   commands?: Record<string, string>;
+}
+
+export interface DriftPathMapping {
+  source_paths: string[];
+  docs: string[];
 }
 
 export interface SdlcProjectPaths {
@@ -106,7 +115,7 @@ export function validateProjectConfig(value: unknown): SdlcProjectConfig {
     throw new Error(".sdlc/project.yml must be a YAML object.");
   }
 
-  assertKnownKeys(value, "root", ["version", "project", "base_branch", "tracker", "docs", "worktrees", "local", "preview", "production", "commands"]);
+  assertKnownKeys(value, "root", ["version", "project", "base_branch", "tracker", "docs", "worktrees", "local", "preview", "production", "drift", "commands"]);
 
   if (value.version !== 1) {
     throw new Error(".sdlc/project.yml must set `version: 1`.");
@@ -123,6 +132,7 @@ export function validateProjectConfig(value: unknown): SdlcProjectConfig {
   validateLocal(value.local);
   validatePreview(value.preview);
   validateProduction(value.production);
+  validateDrift(value.drift);
   validateCommands(value.commands);
 
   return value as unknown as SdlcProjectConfig;
@@ -236,6 +246,33 @@ function validateProduction(value: unknown): void {
   validateOptionalStringArray(value.smoke_paths, "production.smoke_paths");
 }
 
+function validateDrift(value: unknown): void {
+  if (value === undefined) {
+    return;
+  }
+
+  assertObject(value, "drift");
+  assertKnownKeys(value, "drift", ["mode", "mappings"]);
+
+  if (value.mode !== undefined && value.mode !== "warn" && value.mode !== "error") {
+    throw new Error("drift.mode must be one of: warn, error.");
+  }
+
+  if (value.mappings === undefined) {
+    return;
+  }
+  if (!Array.isArray(value.mappings)) {
+    throw new Error("drift.mappings must be a list.");
+  }
+
+  for (const [index, mapping] of value.mappings.entries()) {
+    assertObject(mapping, `drift.mappings[${index}]`);
+    assertKnownKeys(mapping, `drift.mappings[${index}]`, ["source_paths", "docs"]);
+    validateRequiredStringArray(mapping.source_paths, `drift.mappings[${index}].source_paths`);
+    validateRequiredStringArray(mapping.docs, `drift.mappings[${index}].docs`);
+  }
+}
+
 function validateCommands(value: unknown): void {
   if (value === undefined) {
     return;
@@ -299,6 +336,14 @@ function validateOptionalStringArray(value: unknown, key: string): void {
   }
 }
 
+function validateRequiredStringArray(value: unknown, key: string): void {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${key} must be a non-empty list of non-empty strings.`);
+  }
+
+  validateOptionalStringArray(value, key);
+}
+
 function assertObject(value: unknown, key: string): asserts value is Record<string, unknown> {
   if (!isRecord(value)) {
     throw new Error(`${key} must be a YAML object.`);
@@ -320,3 +365,4 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export * from "./templates";
 export * from "./blueprints";
 export * from "./plans";
+export * from "./drift";
