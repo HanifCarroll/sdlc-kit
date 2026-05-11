@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { GitHubAdapter, type GitHubCommandRunner } from "@sdlc-kit/github-adapter";
 import {
   PortlessAdapter,
@@ -32,10 +32,25 @@ export interface RunCliOptions {
   cwd?: string;
   output?: CliOutput;
   githubRunner?: GitHubCommandRunner;
+  gitRunner?: GitCommandRunner;
   portlessRunner?: PortlessCommandRunner;
 }
 
-const plannedCommands = new Set(["worktree", "qa", "closeout"]);
+export interface GitCommandResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
+export interface GitCommandOptions {
+  cwd?: string;
+}
+
+export interface GitCommandRunner {
+  run(args: string[], options?: GitCommandOptions): GitCommandResult;
+}
+
+const plannedCommands = new Set(["qa", "closeout"]);
 
 const defaultOutput: CliOutput = {
   stdout: (message) => console.log(message),
@@ -66,6 +81,8 @@ export function runCli(argv: string[], options: RunCliOptions = {}): number {
       return runDoctor(args, options, output);
     case "blueprint":
       return runBlueprint(args, options, output);
+    case "worktree":
+      return runWorktree(args, options, output);
     case "route":
       return runRoute(args, options, output);
     case "drift":
@@ -221,6 +238,55 @@ Writes .sdlc/blueprints/issue-<number>.md from the configured GitHub issue. Pass
   }
 }
 
+function runWorktree(args: string[], options: RunCliOptions, output: CliOutput): number {
+  if (isHelpRequest(args)) {
+    output.stdout(worktreeCommandHelp());
+    return 0;
+  }
+
+  try {
+    const [subcommand = "list", ...rest] = args;
+    const project = loadProjectConfig(options.cwd);
+    const git = options.gitRunner ?? createGitCommandRunner();
+
+    if (subcommand === "list") {
+      const result = runGit(git, ["worktree", "list", "--porcelain"], project.projectRoot);
+      output.stdout(formatWorktreeList(result.stdout));
+      return 0;
+    }
+
+    if (subcommand === "start") {
+      const parsed = parseWorktreeStartOptions(rest);
+      const issue = loadIssueForWorktree(project, parsed.issueNumber, options.githubRunner);
+      const plan = buildWorktreeStartPlan(project, parsed, issue?.title);
+
+      if (parsed.dryRun) {
+        output.stdout(formatWorktreeDryRun(plan));
+        return 0;
+      }
+
+      mkdirSync(plan.root, { recursive: true });
+      if (existsSync(plan.path)) {
+        output.stdout(formatWorktreeAlreadyExists(plan));
+        return 0;
+      }
+
+      const branchExists = git.run(["rev-parse", "--verify", plan.branch], { cwd: project.projectRoot }).exitCode === 0;
+      const args = branchExists
+        ? ["worktree", "add", plan.path, plan.branch]
+        : ["worktree", "add", "-b", plan.branch, plan.path, plan.baseBranch];
+      runGit(git, args, project.projectRoot);
+      output.stdout(formatWorktreeCreated(plan, branchExists));
+      return 0;
+    }
+
+    throw new Error(`Unknown subcommand for sdlc worktree: ${subcommand}`);
+  } catch (error) {
+    output.stderr(toErrorMessage(error));
+    return 1;
+  }
+}
+
 function runRoute(args: string[], options: RunCliOptions, output: CliOutput): number {
   if (isHelpRequest(args)) {
     output.stdout(routeCommandHelp());
@@ -331,12 +397,72 @@ interface RouteCleanupOptions {
   issue?: number;
 }
 
+interface WorktreeStartOptions {
+  issueNumber: number;
+  branch?: string;
+  dryRun: boolean;
+}
+
+interface WorktreeStartPlan {
+  issueNumber: number;
+  issueTitle?: string;
+  branch: string;
+  baseBranch: string;
+  root: string;
+  path: string;
+}
+
 interface DriftOptions {
   base?: string;
   changedFiles: string[];
   noDocImpactReason?: string;
   json: boolean;
   failOnWarn: boolean;
+}
+
+function parseWorktreeStartOptions(args: string[]): WorktreeStartOptions {
+  let issueNumber: number | undefined;
+  let branch: string | undefined;
+  let dryRun = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === undefined) {
+      continue;
+    }
+
+    if (arg === "--dry-run") {
+      dryRun = true;
+      continue;
+    }
+    if (arg?.startsWith("--branch=")) {
+      branch = requiredOptionValue(arg.slice("--branch=".length), "--branch");
+      continue;
+    }
+    if (arg === "--branch") {
+      index += 1;
+      branch = requiredOptionValue(args[index], "--branch");
+      continue;
+    }
+    if (arg?.startsWith("-")) {
+      throw new Error(`Unknown option for sdlc worktree start: ${arg}`);
+    }
+    if (issueNumber !== undefined) {
+      throw new Error(`Unexpected extra argument for sdlc worktree start: ${arg}`);
+    }
+
+    issueNumber = parsePositiveInteger(arg, "issue");
+  }
+
+  if (issueNumber === undefined) {
+    throw new Error("sdlc worktree start requires an issue number.");
+  }
+
+  return {
+    issueNumber,
+    dryRun,
+    ...(branch ? { branch } : {}),
+  };
 }
 
 function parseBlueprintCommandOptions(args: string[]): BlueprintCommandOptions {
@@ -640,6 +766,96 @@ function inferProjectName(cwd: string): string {
   return basename(cwd) || "project";
 }
 
+function createGitCommandRunner(): GitCommandRunner {
+  return {
+    run(args, options = {}) {
+      try {
+        const result = Bun.spawnSync(["git", ...args], {
+          ...spawnCwdOption(options.cwd),
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+
+        return {
+          exitCode: result.exitCode,
+          stdout: decodeOutput(result.stdout),
+          stderr: decodeOutput(result.stderr),
+        };
+      } catch (error) {
+        return {
+          exitCode: 127,
+          stdout: "",
+          stderr: toErrorMessage(error),
+        };
+      }
+    },
+  };
+}
+
+function spawnCwdOption(cwd: string | undefined): { cwd?: string } {
+  return cwd === undefined ? {} : { cwd };
+}
+
+function runGit(runner: GitCommandRunner, args: string[], cwd: string): GitCommandResult {
+  const result = runner.run(args, { cwd });
+  if (result.exitCode !== 0) {
+    throw new Error(`Git command failed: git ${args.join(" ")}\n${result.stderr || result.stdout}`);
+  }
+  return result;
+}
+
+function loadIssueForWorktree(
+  project: LoadProjectConfigResult,
+  issueNumber: number,
+  githubRunner: GitHubCommandRunner | undefined,
+): { title: string } | undefined {
+  if (project.config.tracker?.provider !== "github") {
+    return undefined;
+  }
+
+  const github =
+    githubRunner === undefined
+      ? new GitHubAdapter({ cwd: project.projectRoot })
+      : new GitHubAdapter({ cwd: project.projectRoot, runner: githubRunner });
+  return github.getIssue(issueNumber);
+}
+
+function buildWorktreeStartPlan(
+  project: LoadProjectConfigResult,
+  options: WorktreeStartOptions,
+  issueTitle: string | undefined,
+): WorktreeStartPlan {
+  const slug = slugifyIssueName(issueTitle ?? `issue-${options.issueNumber}`);
+  const baseBranch = project.config.base_branch ?? "main";
+  const prefix = normalizeBranchPrefix(project.config.worktrees?.branch_prefix ?? "codex");
+  const branch = options.branch ?? `${prefix}/${options.issueNumber}-${slug}`;
+  const root = project.paths.worktreesRoot ?? resolve(project.projectRoot, `../${project.config.project}-worktrees`);
+  const path = join(root, `issue-${options.issueNumber}-${slug}`);
+
+  return {
+    issueNumber: options.issueNumber,
+    ...(issueTitle ? { issueTitle } : {}),
+    branch,
+    baseBranch,
+    root,
+    path,
+  };
+}
+
+function slugifyIssueName(value: string): string {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64)
+    .replace(/-+$/g, "");
+  return slug || "issue";
+}
+
+function normalizeBranchPrefix(value: string): string {
+  return value.replace(/^\/+|\/+$/g, "") || "codex";
+}
+
 function templateCommandHelp(command: "init" | "adopt"): string {
   const apply = command === "adopt" ? " [--apply]" : "";
   return `sdlc ${command}
@@ -660,6 +876,16 @@ Usage:
   sdlc route cleanup [--issue 123]
 
 Manages owned Portless local QA routes in .sdlc/routes.local.json. Cleanup only removes routes recorded in that state file.`;
+}
+
+function worktreeCommandHelp(): string {
+  return `sdlc worktree
+
+Usage:
+  sdlc worktree list
+  sdlc worktree start <issue-number> [--branch name] [--dry-run]
+
+Creates and inspects Git worktrees from the local .sdlc/project.yml contract. Worktree paths are created under worktrees.root, or ../<project>-worktrees when no root is configured.`;
 }
 
 function driftCommandHelp(): string {
@@ -745,6 +971,64 @@ function formatOwnedRoutes(routes: PortlessOwnedRoute[]): string {
   return [
     "sdlc route list:",
     ...routes.map((route) => `- ${route.url} -> ${route.port}${route.issue ? ` (issue #${route.issue})` : ""}`),
+  ].join("\n");
+}
+
+function formatWorktreeList(output: string): string {
+  const entries = parseGitWorktreePorcelain(output);
+  if (entries.length === 0) {
+    return "sdlc worktree list: no worktrees found.";
+  }
+
+  return [
+    "sdlc worktree list:",
+    ...entries.map((entry) => `- ${entry.branch ?? "(detached)"}: ${entry.path}`),
+  ].join("\n");
+}
+
+function parseGitWorktreePorcelain(output: string): Array<{ path: string; branch?: string }> {
+  return output
+    .trim()
+    .split(/\n\s*\n/)
+    .filter(Boolean)
+    .flatMap((block) => {
+      const lines = block.split("\n");
+      const worktreeLine = lines.find((line) => line.startsWith("worktree "));
+      if (!worktreeLine) {
+        return [];
+      }
+      const branchLine = lines.find((line) => line.startsWith("branch "));
+      return [{
+        path: worktreeLine.slice("worktree ".length),
+        ...(branchLine ? { branch: branchLine.slice("branch refs/heads/".length) } : {}),
+      }];
+    });
+}
+
+function formatWorktreeDryRun(plan: WorktreeStartPlan): string {
+  return [
+    "sdlc worktree start: dry run",
+    `issue: #${plan.issueNumber}${plan.issueTitle ? ` ${plan.issueTitle}` : ""}`,
+    `branch: ${plan.branch}`,
+    `base branch: ${plan.baseBranch}`,
+    `path: ${plan.path}`,
+  ].join("\n");
+}
+
+function formatWorktreeAlreadyExists(plan: WorktreeStartPlan): string {
+  return [
+    "sdlc worktree start: already exists",
+    `branch: ${plan.branch}`,
+    `path: ${plan.path}`,
+  ].join("\n");
+}
+
+function formatWorktreeCreated(plan: WorktreeStartPlan, branchExists: boolean): string {
+  return [
+    "sdlc worktree start: created",
+    `branch: ${plan.branch}`,
+    `base branch: ${branchExists ? "(existing branch)" : plan.baseBranch}`,
+    `path: ${plan.path}`,
   ].join("\n");
 }
 

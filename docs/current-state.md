@@ -9,6 +9,7 @@ This file summarizes what `sdlc-kit` currently ships and what remains intentiona
 - `sdlc adopt` for report-first adoption in existing projects, with writes gated by `--apply`.
 - `sdlc doctor` for validating the local project manifest and warning about missing docs, provider risks, plan frontmatter, and closeout gaps.
 - `sdlc blueprint` for generating local issue blueprints and syncing them to GitHub issue comments.
+- `sdlc worktree` for listing Git worktrees and creating issue-specific worktrees from the project manifest.
 - `sdlc route` for owned Portless local QA routes.
 - `sdlc drift` for mapping source changes to required docs/capability updates.
 - Typed GitHub adapter for issue metadata, blueprint comments, and closeout comments.
@@ -19,7 +20,7 @@ This file summarizes what `sdlc-kit` currently ships and what remains intentiona
 
 ## Current Limits
 
-- `sdlc worktree`, `sdlc qa`, and `sdlc closeout` are still being implemented.
+- `sdlc qa` and `sdlc closeout` are still being implemented.
 - The package has not been published to npm.
 - Provider adapters interpret supplied evidence; most do not yet fetch provider APIs directly.
 - Drift mappings start empty in generated projects and must be configured per repo.

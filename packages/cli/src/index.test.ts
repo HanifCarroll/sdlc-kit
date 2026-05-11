@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { describe, expect, test } from "bun:test";
 import type {
   GitHubCommandOptions,
@@ -13,7 +13,13 @@ import type {
   PortlessCommandResult,
   PortlessCommandRunner,
 } from "@sdlc-kit/portless-adapter";
-import { cliPackage, runCli } from "./cli";
+import {
+  cliPackage,
+  runCli,
+  type GitCommandOptions,
+  type GitCommandResult,
+  type GitCommandRunner,
+} from "./cli";
 
 describe("runCli", () => {
   test("prints help", () => {
@@ -46,10 +52,10 @@ describe("runCli", () => {
   test("keeps planned commands visible without pretending they are implemented", () => {
     const capture = createOutputCapture();
 
-    expect(runCli(["worktree", "start", "123"], { output: capture.output })).toBe(1);
+    expect(runCli(["closeout", "123"], { output: capture.output })).toBe(1);
     expect(capture.stdout).toEqual([]);
     expect(capture.stderr).toEqual([
-      "sdlc worktree: planned command, not implemented yet.\nargs: start 123",
+      "sdlc closeout: planned command, not implemented yet.\nargs: 123",
     ]);
   });
 
@@ -236,6 +242,86 @@ preview:
     expect(capture.stdout[0]).toContain("github: created blueprint comment");
   });
 
+  test("worktree list formats git worktree output", () => {
+    const projectRoot = createProjectFixture();
+    const capture = createOutputCapture();
+    const gitRunner = createGitRunner([
+      gitResult(
+        0,
+        `worktree ${projectRoot}
+HEAD abc123
+branch refs/heads/main
+
+worktree ${projectRoot}-worktrees/issue-26-worktree-command
+HEAD def456
+branch refs/heads/codex/26-worktree-command
+`,
+      ),
+    ]);
+
+    expect(runCli(["worktree", "list"], { cwd: projectRoot, output: capture.output, gitRunner })).toBe(0);
+    expect(capture.stdout[0]).toContain("sdlc worktree list:");
+    expect(capture.stdout[0]).toContain(`- main: ${projectRoot}`);
+    expect(capture.stdout[0]).toContain("- codex/26-worktree-command:");
+    expect(gitRunner.calls.map((call) => call.args)).toEqual([
+      ["worktree", "list", "--porcelain"],
+    ]);
+  });
+
+  test("worktree start dry run plans deterministic branch and path", () => {
+    const projectRoot = createWorktreeProjectFixture();
+    const capture = createOutputCapture();
+    const githubRunner = createGitHubRunner({ number: 26, title: "Implement sdlc worktree command" });
+    const gitRunner = createGitRunner([]);
+
+    expect(
+      runCli(["worktree", "start", "26", "--dry-run"], {
+        cwd: projectRoot,
+        output: capture.output,
+        githubRunner,
+        gitRunner,
+      }),
+    ).toBe(0);
+
+    expect(capture.stdout[0]).toContain("sdlc worktree start: dry run");
+    expect(capture.stdout[0]).toContain("branch: codex/26-implement-sdlc-worktree-command");
+    expect(capture.stdout[0]).toContain("path:");
+    expect(capture.stdout[0]).toContain("issue-26-implement-sdlc-worktree-command");
+    expect(gitRunner.calls).toEqual([]);
+  });
+
+  test("worktree start creates a branch worktree from the configured base branch", () => {
+    const projectRoot = createWorktreeProjectFixture();
+    const capture = createOutputCapture();
+    const githubRunner = createGitHubRunner({ number: 26, title: "Implement sdlc worktree command" });
+    const gitRunner = createGitRunner([
+      gitResult(1, "", "branch missing"),
+      gitResult(0, "created"),
+    ]);
+
+    expect(
+      runCli(["worktree", "start", "26"], {
+        cwd: projectRoot,
+        output: capture.output,
+        githubRunner,
+        gitRunner,
+      }),
+    ).toBe(0);
+
+    expect(capture.stdout[0]).toContain("sdlc worktree start: created");
+    expect(gitRunner.calls.map((call) => call.args)).toEqual([
+      ["rev-parse", "--verify", "codex/26-implement-sdlc-worktree-command"],
+      [
+        "worktree",
+        "add",
+        "-b",
+        "codex/26-implement-sdlc-worktree-command",
+        `${projectRoot}-worktrees/issue-26-implement-sdlc-worktree-command`,
+        "main",
+      ],
+    ]);
+  });
+
   test("route list skips projects without local routes configured", () => {
     const projectRoot = createProjectFixture();
     const capture = createOutputCapture();
@@ -384,6 +470,26 @@ commands:
   return projectRoot;
 }
 
+function createWorktreeProjectFixture(): string {
+  const projectRoot = mkdtempSync(join(tmpdir(), "sdlc-kit-worktree-project-"));
+  mkdirSync(join(projectRoot, ".sdlc"));
+  writeFileSync(
+    join(projectRoot, ".sdlc", "project.yml"),
+    `version: 1
+project: fixture
+base_branch: main
+tracker:
+  provider: github
+worktrees:
+  root: ../${basename(projectRoot)}-worktrees
+  branch_prefix: codex
+commands:
+  check: bun run check
+`,
+  );
+  return projectRoot;
+}
+
 function createMissingWorktreeRootFixture(): string {
   return createWorktreeRootFixture(mkdtempSync(join(tmpdir(), "sdlc-kit-missing-worktree-root-")));
 }
@@ -451,7 +557,7 @@ interface MockGitHubRunner extends GitHubCommandRunner {
   calls: Array<{ args: string[]; options?: GitHubCommandOptions }>;
 }
 
-function createGitHubRunner(): MockGitHubRunner {
+function createGitHubRunner(issue: { number: number; title: string } = { number: 6, title: "Blueprint handling" }): MockGitHubRunner {
   const calls: MockGitHubRunner["calls"] = [];
 
   return {
@@ -469,11 +575,11 @@ function createGitHubRunner(): MockGitHubRunner {
         return githubResult(
           0,
           JSON.stringify({
-            number: 6,
-            title: "Blueprint handling",
+            number: issue.number,
+            title: issue.title,
             state: "OPEN",
             body: "Acceptance criteria",
-            url: "https://github.com/acme/example/issues/6",
+            url: `https://github.com/acme/example/issues/${issue.number}`,
             labels: [{ name: "type:feature" }, { name: "area:core" }],
             comments: [],
             closedByPullRequestsReferences: [],
@@ -487,6 +593,26 @@ function createGitHubRunner(): MockGitHubRunner {
 }
 
 function githubResult(exitCode: number, stdout = "", stderr = ""): GitHubCommandResult {
+  return { exitCode, stdout, stderr };
+}
+
+interface MockGitRunner extends GitCommandRunner {
+  calls: Array<{ args: string[]; options?: GitCommandOptions }>;
+}
+
+function createGitRunner(results: GitCommandResult[]): MockGitRunner {
+  const calls: MockGitRunner["calls"] = [];
+
+  return {
+    calls,
+    run(args, options) {
+      calls.push(options === undefined ? { args } : { args, options });
+      return results.shift() ?? gitResult(0, "");
+    },
+  };
+}
+
+function gitResult(exitCode: number, stdout = "", stderr = ""): GitCommandResult {
   return { exitCode, stdout, stderr };
 }
 
