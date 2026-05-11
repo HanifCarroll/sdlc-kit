@@ -3,6 +3,16 @@
   "version": "0.0.0",
   "description": "Core schema and project contract utilities for sdlc-kit.",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HanifCarroll/sdlc-kit.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/HanifCarroll/sdlc-kit/issues"
+  },
+  "homepage": "https://github.com/HanifCarroll/sdlc-kit#readme",
   "exports": {
     ".": "./src/index.ts"
   },

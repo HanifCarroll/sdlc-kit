@@ -3,6 +3,22 @@
   "version": "0.0.0",
   "description": "A repo-local SDLC contract for AI-assisted engineering.",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HanifCarroll/sdlc-kit.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/HanifCarroll/sdlc-kit/issues"
+  },
+  "homepage": "https://github.com/HanifCarroll/sdlc-kit#readme",
+  "keywords": [
+    "ai",
+    "agents",
+    "sdlc",
+    "workflows"
+  ],
   "bin": {
     "sdlc": "./src/index.ts"
   },
