@@ -1,0 +1,7 @@
+interface:
+  display_name: "SDLC Refactor"
+  short_description: "Issue-first refactor workflow"
+  default_prompt: "Use $sdlc-refactor to plan this refactor, create or update the GitHub issue, protect behavior with tests, and choose light or heavy implementation mode."
+
+policy:
+  allow_implicit_invocation: true

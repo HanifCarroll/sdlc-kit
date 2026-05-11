@@ -1,0 +1,7 @@
+interface:
+  display_name: "SDLC Bug"
+  short_description: "Issue-first bug fix workflow"
+  default_prompt: "Use $sdlc-bug to diagnose this bug, create or update the GitHub issue, choose the right test path, and keep verification notes."
+
+policy:
+  allow_implicit_invocation: true

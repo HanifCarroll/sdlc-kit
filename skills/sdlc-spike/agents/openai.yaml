@@ -1,0 +1,8 @@
+interface:
+  display_name: "SDLC Spike"
+  short_description: "Issue-first research and decision workflow"
+  default_prompt: "Use $sdlc-spike to define this research question, create or update the GitHub issue, gather evidence, and produce a decision or follow-up issues."
+
+policy:
+  allow_implicit_invocation: true
+

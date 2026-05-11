@@ -1,0 +1,8 @@
+interface:
+  display_name: "SDLC Maintenance"
+  short_description: "Issue-first maintenance workflow"
+  default_prompt: "Use $sdlc-maintenance to plan this maintenance task, create or update the GitHub issue, choose the right risk path, and record verification."
+
+policy:
+  allow_implicit_invocation: true
+

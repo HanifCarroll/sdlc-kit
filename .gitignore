@@ -1,0 +1,6 @@
+node_modules/
+bun.lockb
+dist/
+.sdlc/routes.local.json
+.sdlc/blueprints/
+.DS_Store

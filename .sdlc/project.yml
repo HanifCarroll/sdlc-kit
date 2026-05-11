@@ -1,0 +1,33 @@
+version: 1
+project: sdlc-kit
+base_branch: main
+
+tracker:
+  provider: github
+
+docs:
+  constitution: docs/constitution.md
+  current_state: docs/current-state.md
+  capabilities_dir: docs/capabilities
+  plans_dir: docs/plans
+  decisions_dir: docs/adr
+
+worktrees:
+  root: ../sdlc-kit-worktrees
+  branch_prefix: codex
+
+local:
+  provider: none
+  required_before_push: false
+
+preview:
+  provider: none
+  required_before_merge: false
+
+production:
+  required_before_issue_close: false
+
+commands:
+  install: bun install
+  check: bun run check
+  test: bun test

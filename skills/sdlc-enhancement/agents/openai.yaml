@@ -1,0 +1,7 @@
+interface:
+  display_name: "SDLC Enhancement"
+  short_description: "Issue-first enhancement workflow"
+  default_prompt: "Use $sdlc-enhancement to shape this existing-feature improvement, create or update the GitHub issue, and route through the right review and verification gates."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,20 @@
+{
+  "name": "@sdlc-kit/core",
+  "version": "0.0.0",
+  "description": "Core schema and project contract utilities for sdlc-kit.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.9.0"
+  }
+}

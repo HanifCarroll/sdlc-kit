@@ -1,0 +1,8 @@
+interface:
+  display_name: "SDLC Triage"
+  short_description: "Issue-first ambiguous work triage"
+  default_prompt: "Use $sdlc-triage to classify this ambiguous work, create or update the GitHub issue, and route it to the right SDLC workflow."
+
+policy:
+  allow_implicit_invocation: true
+
