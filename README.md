@@ -60,6 +60,10 @@ Development checks are intentionally small for now: TypeScript validation, Bun t
 - `sdlc adopt` is report-first. Writes require `--apply`.
 - Drift checks start warn-only for adopted repos.
 
+## Project Manifest
+
+Repo behavior is configured through [`.sdlc/project.yml`](.sdlc/project.yml). The manifest schema and example fields are documented in [docs/reference/project-manifest.md](docs/reference/project-manifest.md).
+
 ## License
 
 MIT
