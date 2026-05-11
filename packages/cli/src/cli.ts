@@ -2,6 +2,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { basename, relative, resolve } from "node:path";
 import { GitHubAdapter, type GitHubCommandRunner } from "@sdlc-kit/github-adapter";
 import {
+  PortlessAdapter,
+  type PortlessCommandRunner,
+  type PortlessOwnedRoute,
+} from "@sdlc-kit/portless-adapter";
+import {
   inspectTemplateFiles,
   isPresetName,
   loadProjectConfig,
@@ -25,9 +30,10 @@ export interface RunCliOptions {
   cwd?: string;
   output?: CliOutput;
   githubRunner?: GitHubCommandRunner;
+  portlessRunner?: PortlessCommandRunner;
 }
 
-const plannedCommands = new Set(["worktree", "qa", "drift", "closeout", "route"]);
+const plannedCommands = new Set(["worktree", "qa", "drift", "closeout"]);
 
 const defaultOutput: CliOutput = {
   stdout: (message) => console.log(message),
@@ -58,6 +64,8 @@ export function runCli(argv: string[], options: RunCliOptions = {}): number {
       return runDoctor(args, options, output);
     case "blueprint":
       return runBlueprint(args, options, output);
+    case "route":
+      return runRoute(args, options, output);
     default:
       if (command && plannedCommands.has(command)) {
         output.stderr(plannedCommandText(command, args));
@@ -209,6 +217,59 @@ Writes .sdlc/blueprints/issue-<number>.md from the configured GitHub issue. Pass
   }
 }
 
+function runRoute(args: string[], options: RunCliOptions, output: CliOutput): number {
+  if (isHelpRequest(args)) {
+    output.stdout(routeCommandHelp());
+    return 0;
+  }
+
+  try {
+    const [subcommand = "list", ...rest] = args;
+    const project = loadProjectConfig(options.cwd);
+
+    if (project.config.local?.provider !== "portless") {
+      output.stdout(`sdlc route: local routes are not configured for this project (local.provider: ${project.config.local?.provider ?? "none"}).`);
+      return 0;
+    }
+
+    const adapter = new PortlessAdapter({
+      projectRoot: project.projectRoot,
+      ...(options.portlessRunner ? { runner: options.portlessRunner } : {}),
+    });
+
+    if (subcommand === "list") {
+      output.stdout(formatOwnedRoutes(adapter.listOwnedRoutes()));
+      return 0;
+    }
+
+    if (subcommand === "ensure") {
+      const parsed = parseRouteEnsureOptions(rest);
+      const route = adapter.ensureRoute({
+        project: project.config.project,
+        port: parsed.port,
+        ...(project.config.local.route_pattern ? { routePattern: project.config.local.route_pattern } : {}),
+        ...(parsed.issue !== undefined ? { issue: parsed.issue } : {}),
+        ...(parsed.branch ? { branch: parsed.branch } : {}),
+        force: parsed.force,
+      });
+      output.stdout(route.message);
+      return route.status === "port-conflict" ? 1 : 0;
+    }
+
+    if (subcommand === "cleanup") {
+      const parsed = parseRouteCleanupOptions(rest);
+      const cleanup = adapter.cleanupRoutes(parsed);
+      output.stdout(cleanup.message);
+      return 0;
+    }
+
+    throw new Error(`Unknown subcommand for sdlc route: ${subcommand}`);
+  } catch (error) {
+    output.stderr(toErrorMessage(error));
+    return 1;
+  }
+}
+
 interface TemplateCommandOptions {
   cwd: string;
   preset: PresetName;
@@ -223,6 +284,17 @@ interface BlueprintCommandOptions {
   issueNumber: number;
   sync: boolean;
   overwrite: boolean;
+}
+
+interface RouteEnsureOptions {
+  issue?: number;
+  port: number;
+  branch?: string;
+  force: boolean;
+}
+
+interface RouteCleanupOptions {
+  issue?: number;
 }
 
 function parseBlueprintCommandOptions(args: string[]): BlueprintCommandOptions {
@@ -258,6 +330,85 @@ function parseBlueprintCommandOptions(args: string[]): BlueprintCommandOptions {
   }
 
   return { issueNumber, sync, overwrite };
+}
+
+function parseRouteEnsureOptions(args: string[]): RouteEnsureOptions {
+  let issue: number | undefined;
+  let port: number | undefined;
+  let branch: string | undefined;
+  let force = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === "--force") {
+      force = true;
+      continue;
+    }
+
+    if (arg?.startsWith("--issue=")) {
+      issue = parsePositiveInteger(arg.slice("--issue=".length), "--issue");
+      continue;
+    }
+    if (arg === "--issue") {
+      index += 1;
+      issue = parsePositiveInteger(requiredOptionValue(args[index], "--issue"), "--issue");
+      continue;
+    }
+
+    if (arg?.startsWith("--port=")) {
+      port = parsePort(arg.slice("--port=".length));
+      continue;
+    }
+    if (arg === "--port") {
+      index += 1;
+      port = parsePort(requiredOptionValue(args[index], "--port"));
+      continue;
+    }
+
+    if (arg?.startsWith("--branch=")) {
+      branch = requiredOptionValue(arg.slice("--branch=".length), "--branch");
+      continue;
+    }
+    if (arg === "--branch") {
+      index += 1;
+      branch = requiredOptionValue(args[index], "--branch");
+      continue;
+    }
+
+    throw new Error(`Unknown option for sdlc route ensure: ${arg}`);
+  }
+
+  if (port === undefined) {
+    throw new Error("sdlc route ensure requires --port.");
+  }
+
+  return {
+    port,
+    force,
+    ...(issue !== undefined ? { issue } : {}),
+    ...(branch ? { branch } : {}),
+  };
+}
+
+function parseRouteCleanupOptions(args: string[]): RouteCleanupOptions {
+  let issue: number | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg?.startsWith("--issue=")) {
+      issue = parsePositiveInteger(arg.slice("--issue=".length), "--issue");
+      continue;
+    }
+    if (arg === "--issue") {
+      index += 1;
+      issue = parsePositiveInteger(requiredOptionValue(args[index], "--issue"), "--issue");
+      continue;
+    }
+    throw new Error(`Unknown option for sdlc route cleanup: ${arg}`);
+  }
+
+  return issue === undefined ? {} : { issue };
 }
 
 function parseTemplateCommandOptions(
@@ -359,6 +510,22 @@ function parsePackageManager(value: string): "bun" | "npm" | "pnpm" {
   throw new Error("Package manager must be one of: bun, npm, pnpm.");
 }
 
+function parsePositiveInteger(value: string, option: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${option} must be a positive integer.`);
+  }
+  return parsed;
+}
+
+function parsePort(value: string): number {
+  const parsed = parsePositiveInteger(value, "--port");
+  if (parsed > 65535) {
+    throw new Error("--port must be between 1 and 65535.");
+  }
+  return parsed;
+}
+
 function requiredOptionValue(value: string | undefined, option: string): string {
   if (!value || value.trim() === "") {
     throw new Error(`${option} requires a value.`);
@@ -379,6 +546,17 @@ Usage:
 
 Presets:
   full, hanif, github-vercel, github-cloudflare, local-only, library`;
+}
+
+function routeCommandHelp(): string {
+  return `sdlc route
+
+Usage:
+  sdlc route list
+  sdlc route ensure --issue 123 --port 3000 [--branch name] [--force]
+  sdlc route cleanup [--issue 123]
+
+Manages owned Portless local QA routes in .sdlc/routes.local.json. Cleanup only removes routes recorded in that state file.`;
 }
 
 function formatWriteSummary(
@@ -445,6 +623,17 @@ function formatAdoptApplySummary(
   }
 
   return lines.join("\n");
+}
+
+function formatOwnedRoutes(routes: PortlessOwnedRoute[]): string {
+  if (routes.length === 0) {
+    return "sdlc route list: no owned Portless routes recorded.";
+  }
+
+  return [
+    "sdlc route list:",
+    ...routes.map((route) => `- ${route.url} -> ${route.port}${route.issue ? ` (issue #${route.issue})` : ""}`),
+  ].join("\n");
 }
 
 function missingTemplateFiles(files: TemplateFile[], inspection: TemplateFileInspection[]): TemplateFile[] {

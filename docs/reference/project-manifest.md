@@ -75,3 +75,5 @@ Unsupported keys fail validation so misspelled contract fields do not silently d
 For Vercel, preview verification must not point at `production`. Use `preview` for standard Vercel preview deployments or a non-production custom environment when the project has one.
 
 For Cloudflare, preview verification must also confirm preview/prod binding separation. Pages preview deployments and Workers preview URLs can mirror production code, but preview secrets, bindings, data stores, and Access rules should be intentionally separated or explicitly accepted before merge.
+
+For Portless, `local.route_pattern` renders the owned local QA hostname. Supported placeholders are `{project}`, `{issue}`, `{branch}`, and `{worktree}`. `sdlc route ensure --issue <n> --port <n>` registers the rendered route through `portless alias` and records owned routes in `.sdlc/routes.local.json`; `sdlc route cleanup` removes only routes recorded in that state file.
