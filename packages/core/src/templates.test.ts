@@ -119,6 +119,29 @@ describe("template presets", () => {
     });
   });
 
+  test("renders package-manager-specific drift workflow commands", () => {
+    const bunWorkflow = readTemplateFile(
+      renderPreset({ preset: "full", project: "example", packageManager: "bun" }),
+      ".github/workflows/sdlc-drift.yml",
+    );
+    const pnpmWorkflow = readTemplateFile(
+      renderPreset({ preset: "full", project: "example", packageManager: "pnpm" }),
+      ".github/workflows/sdlc-drift.yml",
+    );
+    const npmWorkflow = readTemplateFile(
+      renderPreset({ preset: "full", project: "example", packageManager: "npm" }),
+      ".github/workflows/sdlc-drift.yml",
+    );
+
+    expect(bunWorkflow).toContain("uses: oven-sh/setup-bun@v2");
+    expect(bunWorkflow).toContain("output=$(bunx sdlc-kit drift 2>&1)");
+    expect(pnpmWorkflow).toContain("run: corepack enable");
+    expect(pnpmWorkflow).toContain("output=$(pnpm dlx sdlc-kit drift 2>&1)");
+    expect(npmWorkflow).toContain("output=$(npx --yes sdlc-kit drift 2>&1)");
+    expect(pnpmWorkflow).toContain("skipping drift check");
+    expect(npmWorkflow).not.toContain("setup-bun");
+  });
+
   test("refuses to overwrite existing files unless explicitly approved", () => {
     const targetRoot = mkdtempSync(join(tmpdir(), "sdlc-kit-template-"));
     const files = renderPreset({ preset: "full", project: "example" });
@@ -172,4 +195,12 @@ function readManifestSnapshot(preset: PresetName): {
     production?: { required_before_issue_close?: boolean };
     drift?: { mode?: string };
   };
+}
+
+function readTemplateFile(files: Array<{ path: string; content: string }>, path: string): string {
+  const file = files.find((candidate) => candidate.path === path);
+  if (!file) {
+    throw new Error(`Missing template file: ${path}`);
+  }
+  return file.content;
 }
