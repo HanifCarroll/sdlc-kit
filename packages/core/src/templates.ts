@@ -36,6 +36,12 @@ export interface TemplateWritePlan {
   action: "create" | "overwrite";
 }
 
+export interface TemplateFileInspection {
+  path: string;
+  targetPath: string;
+  state: "missing" | "exists";
+}
+
 interface PresetDefinition {
   trackerProvider: ProviderName;
   localProvider: ProviderName;
@@ -130,14 +136,28 @@ export function renderPreset(options: RenderPresetOptions): TemplateFile[] {
   ];
 }
 
+export function isPresetName(value: string): value is PresetName {
+  return presetNames.includes(value as PresetName);
+}
+
+export function inspectTemplateFiles(targetRoot: string, files: TemplateFile[]): TemplateFileInspection[] {
+  return files.map((file) => {
+    const targetPath = resolveTemplateTarget(targetRoot, file.path);
+    return {
+      path: file.path,
+      targetPath,
+      state: existsSync(targetPath) ? "exists" : "missing",
+    };
+  });
+}
+
 export function planTemplateWrites(
   targetRoot: string,
   files: TemplateFile[],
   options: TemplateWriteOptions = {},
 ): TemplateWritePlan[] {
-  return files.map((file) => {
-    const targetPath = resolveTemplateTarget(targetRoot, file.path);
-    const exists = existsSync(targetPath);
+  return inspectTemplateFiles(targetRoot, files).map((file) => {
+    const exists = file.state === "exists";
 
     if (exists && !options.overwrite) {
       throw new Error(`Refusing to overwrite ${file.path}. Pass overwrite: true to replace existing files.`);
@@ -145,7 +165,7 @@ export function planTemplateWrites(
 
     return {
       path: file.path,
-      targetPath,
+      targetPath: file.targetPath,
       action: exists ? "overwrite" : "create",
     };
   });
