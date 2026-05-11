@@ -7,6 +7,8 @@ import {
   type PortlessOwnedRoute,
 } from "@sdlc-kit/portless-adapter";
 import {
+  checkDrift,
+  formatDriftResult,
   inspectTemplateFiles,
   isPresetName,
   loadProjectConfig,
@@ -33,7 +35,7 @@ export interface RunCliOptions {
   portlessRunner?: PortlessCommandRunner;
 }
 
-const plannedCommands = new Set(["worktree", "qa", "drift", "closeout"]);
+const plannedCommands = new Set(["worktree", "qa", "closeout"]);
 
 const defaultOutput: CliOutput = {
   stdout: (message) => console.log(message),
@@ -66,6 +68,8 @@ export function runCli(argv: string[], options: RunCliOptions = {}): number {
       return runBlueprint(args, options, output);
     case "route":
       return runRoute(args, options, output);
+    case "drift":
+      return runDrift(args, options, output);
     default:
       if (command && plannedCommands.has(command)) {
         output.stderr(plannedCommandText(command, args));
@@ -270,6 +274,36 @@ function runRoute(args: string[], options: RunCliOptions, output: CliOutput): nu
   }
 }
 
+function runDrift(args: string[], options: RunCliOptions, output: CliOutput): number {
+  if (isHelpRequest(args)) {
+    output.stdout(driftCommandHelp());
+    return 0;
+  }
+
+  try {
+    const parsed = parseDriftOptions(args);
+    const project = loadProjectConfig(options.cwd);
+    const changedFiles =
+      parsed.changedFiles.length > 0
+        ? parsed.changedFiles
+        : readChangedFilesFromGit(project.projectRoot, parsed.base ?? project.config.base_branch ?? "main");
+    const result = checkDrift({
+      config: project.config,
+      changedFiles,
+      ...(parsed.noDocImpactReason ? { noDocImpactReason: parsed.noDocImpactReason } : {}),
+    });
+
+    output.stdout(parsed.json ? JSON.stringify(result, null, 2) : formatDriftResult(result));
+    if (result.status === "error" || (parsed.failOnWarn && result.status === "warning")) {
+      return 1;
+    }
+    return 0;
+  } catch (error) {
+    output.stderr(toErrorMessage(error));
+    return 1;
+  }
+}
+
 interface TemplateCommandOptions {
   cwd: string;
   preset: PresetName;
@@ -295,6 +329,14 @@ interface RouteEnsureOptions {
 
 interface RouteCleanupOptions {
   issue?: number;
+}
+
+interface DriftOptions {
+  base?: string;
+  changedFiles: string[];
+  noDocImpactReason?: string;
+  json: boolean;
+  failOnWarn: boolean;
 }
 
 function parseBlueprintCommandOptions(args: string[]): BlueprintCommandOptions {
@@ -409,6 +451,67 @@ function parseRouteCleanupOptions(args: string[]): RouteCleanupOptions {
   }
 
   return issue === undefined ? {} : { issue };
+}
+
+function parseDriftOptions(args: string[]): DriftOptions {
+  let base: string | undefined;
+  const changedFiles: string[] = [];
+  let noDocImpactReason: string | undefined;
+  let json = false;
+  let failOnWarn = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+    if (arg === "--fail-on-warn") {
+      failOnWarn = true;
+      continue;
+    }
+
+    if (arg?.startsWith("--base=")) {
+      base = requiredOptionValue(arg.slice("--base=".length), "--base");
+      continue;
+    }
+    if (arg === "--base") {
+      index += 1;
+      base = requiredOptionValue(args[index], "--base");
+      continue;
+    }
+
+    if (arg?.startsWith("--changed=")) {
+      changedFiles.push(requiredOptionValue(arg.slice("--changed=".length), "--changed"));
+      continue;
+    }
+    if (arg === "--changed") {
+      index += 1;
+      changedFiles.push(requiredOptionValue(args[index], "--changed"));
+      continue;
+    }
+
+    if (arg?.startsWith("--no-doc-impact=")) {
+      noDocImpactReason = requiredOptionValue(arg.slice("--no-doc-impact=".length), "--no-doc-impact");
+      continue;
+    }
+    if (arg === "--no-doc-impact") {
+      index += 1;
+      noDocImpactReason = requiredOptionValue(args[index], "--no-doc-impact");
+      continue;
+    }
+
+    throw new Error(`Unknown option for sdlc drift: ${arg}`);
+  }
+
+  return {
+    changedFiles,
+    json,
+    failOnWarn,
+    ...(base ? { base } : {}),
+    ...(noDocImpactReason ? { noDocImpactReason } : {}),
+  };
 }
 
 function parseTemplateCommandOptions(
@@ -557,6 +660,15 @@ Usage:
   sdlc route cleanup [--issue 123]
 
 Manages owned Portless local QA routes in .sdlc/routes.local.json. Cleanup only removes routes recorded in that state file.`;
+}
+
+function driftCommandHelp(): string {
+  return `sdlc drift
+
+Usage:
+  sdlc drift [--base main] [--changed path] [--no-doc-impact reason] [--json] [--fail-on-warn]
+
+Checks changed source paths against drift.mappings in .sdlc/project.yml. Adopted repos should start with drift.mode: warn, then move to drift.mode: error after mappings are trustworthy.`;
 }
 
 function formatWriteSummary(
@@ -762,6 +874,24 @@ function providerWarnings(provider: string | undefined, surface: string): string
   return [`${surface} provider '${provider}' is configured but '${command}' was not found on PATH.`];
 }
 
+function readChangedFilesFromGit(projectRoot: string, base: string): string[] {
+  const diffRange = `${base}...HEAD`;
+  const result = Bun.spawnSync(["git", "diff", "--name-only", diffRange], {
+    cwd: projectRoot,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  if (result.exitCode !== 0) {
+    throw new Error(`git diff failed for ${diffRange}: ${decodeOutput(result.stderr || result.stdout)}`);
+  }
+
+  return decodeOutput(result.stdout)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function commandAvailable(command: string): boolean {
   const result = Bun.spawnSync({
     cmd: ["sh", "-lc", `command -v ${command}`],
@@ -769,6 +899,10 @@ function commandAvailable(command: string): boolean {
     stderr: "ignore",
   });
   return result.exitCode === 0;
+}
+
+function decodeOutput(value: Uint8Array): string {
+  return new TextDecoder().decode(value);
 }
 
 function plannedCommandText(command: string, args: string[]): string {

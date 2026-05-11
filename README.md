@@ -50,6 +50,7 @@ bun install
 bun run sdlc --help
 bun run sdlc blueprint 123
 bun run sdlc route list
+bun run sdlc drift --changed src/example.ts
 bun run ci
 ```
 

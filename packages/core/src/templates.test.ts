@@ -55,6 +55,7 @@ describe("template presets", () => {
             preview: manifest.preview?.provider,
             previewRequired: manifest.preview?.required_before_merge,
             productionRequired: manifest.production?.required_before_issue_close,
+            driftMode: manifest.drift?.mode,
           },
         ];
       }),
@@ -68,6 +69,7 @@ describe("template presets", () => {
         preview: "vercel",
         previewRequired: true,
         productionRequired: true,
+        driftMode: "warn",
       },
       hanif: {
         tracker: "github",
@@ -76,6 +78,7 @@ describe("template presets", () => {
         preview: "vercel",
         previewRequired: true,
         productionRequired: true,
+        driftMode: "warn",
       },
       "github-vercel": {
         tracker: "github",
@@ -84,6 +87,7 @@ describe("template presets", () => {
         preview: "vercel",
         previewRequired: true,
         productionRequired: true,
+        driftMode: "warn",
       },
       "github-cloudflare": {
         tracker: "github",
@@ -92,6 +96,7 @@ describe("template presets", () => {
         preview: "cloudflare",
         previewRequired: true,
         productionRequired: true,
+        driftMode: "warn",
       },
       "local-only": {
         tracker: "none",
@@ -100,6 +105,7 @@ describe("template presets", () => {
         preview: "none",
         previewRequired: false,
         productionRequired: false,
+        driftMode: "warn",
       },
       library: {
         tracker: "github",
@@ -108,6 +114,7 @@ describe("template presets", () => {
         preview: "none",
         previewRequired: false,
         productionRequired: false,
+        driftMode: "warn",
       },
     });
   });
@@ -150,6 +157,7 @@ function readManifestSnapshot(preset: PresetName): {
   local?: { provider?: string; required_before_push?: boolean };
   preview?: { provider?: string; required_before_merge?: boolean };
   production?: { required_before_issue_close?: boolean };
+  drift?: { mode?: string };
 } {
   const file = renderPreset({ preset, project: "example" }).find(
     (candidate) => candidate.path === ".sdlc/project.yml",
@@ -162,5 +170,6 @@ function readManifestSnapshot(preset: PresetName): {
     local?: { provider?: string; required_before_push?: boolean };
     preview?: { provider?: string; required_before_merge?: boolean };
     production?: { required_before_issue_close?: boolean };
+    drift?: { mode?: string };
   };
 }

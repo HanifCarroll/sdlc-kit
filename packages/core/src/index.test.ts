@@ -21,6 +21,15 @@ describe("validateProjectConfig", () => {
           required_before_issue_close: true,
           smoke_paths: ["/", "/health"],
         },
+        drift: {
+          mode: "warn",
+          mappings: [
+            {
+              source_paths: ["src/**"],
+              docs: ["docs/capabilities/app.md"],
+            },
+          ],
+        },
         commands: {
           test: "bun test",
         },
@@ -64,6 +73,28 @@ describe("validateProjectConfig", () => {
         },
       }),
     ).toThrow("commands.test must be a non-empty string.");
+  });
+
+  test("rejects invalid drift mappings", () => {
+    expect(() =>
+      validateProjectConfig({
+        version: 1,
+        project: "example",
+        drift: {
+          mode: "fail",
+        },
+      }),
+    ).toThrow("drift.mode must be one of");
+
+    expect(() =>
+      validateProjectConfig({
+        version: 1,
+        project: "example",
+        drift: {
+          mappings: [{ source_paths: [], docs: ["docs/capabilities/app.md"] }],
+        },
+      }),
+    ).toThrow("drift.mappings[0].source_paths must be a non-empty list");
   });
 });
 

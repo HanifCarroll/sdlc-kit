@@ -40,6 +40,14 @@ production:
     - /
     - /health
 
+drift:
+  mode: warn
+  mappings:
+    - source_paths:
+        - src/**
+      docs:
+        - docs/capabilities/app.md
+
 commands:
   install: bun install
   check: bun run check
@@ -66,6 +74,9 @@ commands:
 | `preview.require_preview_secrets` | No | boolean | Whether preview-only secrets or bindings must be confirmed. |
 | `production.required_before_issue_close` | No | boolean | Whether issue closeout requires production smoke evidence. |
 | `production.smoke_paths` | No | string list | Paths to smoke-test after deploy. |
+| `drift.mode` | No | `warn` or `error` | Whether drift findings should warn or fail by default. Adopted repos should start with `warn`. |
+| `drift.mappings[].source_paths` | No | string list | Source path globs that should be kept aligned with docs. |
+| `drift.mappings[].docs` | No | string list | Docs or capability paths that acknowledge the mapped source behavior. |
 | `commands` | No | map of strings | Named repo commands such as `install`, `check`, and `test`. |
 
 Supported providers are `github`, `vercel`, `cloudflare`, `portless`, and `none`.
@@ -77,3 +88,5 @@ For Vercel, preview verification must not point at `production`. Use `preview` f
 For Cloudflare, preview verification must also confirm preview/prod binding separation. Pages preview deployments and Workers preview URLs can mirror production code, but preview secrets, bindings, data stores, and Access rules should be intentionally separated or explicitly accepted before merge.
 
 For Portless, `local.route_pattern` renders the owned local QA hostname. Supported placeholders are `{project}`, `{issue}`, `{branch}`, and `{worktree}`. `sdlc route ensure --issue <n> --port <n>` registers the rendered route through `portless alias` and records owned routes in `.sdlc/routes.local.json`; `sdlc route cleanup` removes only routes recorded in that state file.
+
+For drift checks, mapped source changes require a mapped docs/capability update unless the run supplies a concrete no-doc-impact reason. Empty or missing mappings are reported as setup gaps, which lets new/adopted repos start warn-only and tighten coverage over time.
