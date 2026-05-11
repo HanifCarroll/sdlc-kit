@@ -158,7 +158,7 @@ preview:
       }),
     ).toBe(0);
 
-    expect(capture.stdout[0]).toContain("sdlc init: wrote 14 files");
+    expect(capture.stdout[0]).toContain("sdlc init: wrote 16 files");
     expect(existsSync(join(projectRoot, ".sdlc", "project.yml"))).toBe(true);
     expect(readFileSync(join(projectRoot, ".sdlc", "project.yml"), "utf8")).toContain("project: demo");
   });
@@ -202,7 +202,7 @@ preview:
       }),
     ).toBe(0);
 
-    expect(capture.stdout[0]).toContain("sdlc adopt --apply: wrote 13 files");
+    expect(capture.stdout[0]).toContain("sdlc adopt --apply: wrote 15 files");
     expect(capture.stdout[0]).toContain("preserved existing files: 1");
     expect(readFileSync(join(projectRoot, ".sdlc", "project.yml"), "utf8")).toContain("project: existing");
     expect(existsSync(join(projectRoot, ".github", "pull_request_template.md"))).toBe(true);
@@ -320,6 +320,96 @@ branch refs/heads/codex/26-worktree-command
         "main",
       ],
     ]);
+  });
+
+  test("qa record writes issue-scoped evidence", () => {
+    const projectRoot = createProjectFixture();
+    const capture = createOutputCapture();
+
+    expect(
+      runCli(
+        [
+          "qa",
+          "record",
+          "--issue",
+          "27",
+          "--surface",
+          "preview",
+          "--status",
+          "pass",
+          "--url",
+          "https://preview.example.com",
+          "--command",
+          "bun test",
+          "--screenshot",
+          "artifacts/preview.png",
+          "--video",
+          "artifacts/preview.webm",
+          "--note",
+          "Preview smoke passed.",
+        ],
+        { cwd: projectRoot, output: capture.output },
+      ),
+    ).toBe(0);
+
+    const evidencePath = join(projectRoot, ".sdlc", "qa", "issue-27-preview.md");
+    expect(capture.stdout[0]).toContain("sdlc qa record: wrote .sdlc/qa/issue-27-preview.md");
+    expect(readFileSync(evidencePath, "utf8")).toContain("surface: preview");
+    expect(readFileSync(evidencePath, "utf8")).toContain("status: pass");
+    expect(readFileSync(evidencePath, "utf8")).toContain("![Screenshot 1](artifacts/preview.png)");
+    expect(readFileSync(evidencePath, "utf8")).toContain("![Video 1](artifacts/preview.webm)");
+    expect(readFileSync(evidencePath, "utf8")).toContain("- Preview smoke passed.");
+  });
+
+  test("qa record refuses to overwrite evidence unless requested", () => {
+    const projectRoot = createProjectFixture();
+    const first = createOutputCapture();
+    const second = createOutputCapture();
+
+    expect(
+      runCli(["qa", "record", "--issue=27", "--surface=local", "--status=pass"], {
+        cwd: projectRoot,
+        output: first.output,
+      }),
+    ).toBe(0);
+    expect(
+      runCli(["qa", "record", "--issue=27", "--surface=local", "--status=fail"], {
+        cwd: projectRoot,
+        output: second.output,
+      }),
+    ).toBe(1);
+
+    expect(second.stderr[0]).toContain("QA evidence already exists");
+    expect(second.stderr[0]).toContain("Pass --overwrite");
+  });
+
+  test("qa list summarizes recorded evidence", () => {
+    const projectRoot = createProjectFixture();
+    const record = createOutputCapture();
+    const list = createOutputCapture();
+
+    expect(
+      runCli(
+        [
+          "qa",
+          "record",
+          "--issue=27",
+          "--surface=production",
+          "--status=blocked",
+          "--url=https://example.com",
+          "--screenshot=artifacts/prod.png",
+        ],
+        {
+          cwd: projectRoot,
+          output: record.output,
+        },
+      ),
+    ).toBe(0);
+
+    expect(runCli(["qa", "list", "--issue", "27"], { cwd: projectRoot, output: list.output })).toBe(0);
+    expect(list.stdout[0]).toContain("sdlc qa list:");
+    expect(list.stdout[0]).toContain("#27 production: blocked https://example.com");
+    expect(list.stdout[0]).toContain("[1 screenshot]");
   });
 
   test("route list skips projects without local routes configured", () => {

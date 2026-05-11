@@ -15,6 +15,8 @@ const expectedFileSetSnapshot = [
   ".sdlc/project.yml",
   ".sdlc/blueprints/.gitignore",
   ".sdlc/blueprints/README.md",
+  ".sdlc/qa/.gitignore",
+  ".sdlc/qa/README.md",
   "docs/constitution.md",
   "docs/current-state.md",
   "docs/capabilities/README.md",
