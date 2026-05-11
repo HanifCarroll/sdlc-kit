@@ -1,0 +1,40 @@
+version: 1
+project: example-local-tool
+base_branch: main
+
+tracker:
+  provider: none
+
+docs:
+  constitution: docs/constitution.md
+  current_state: docs/current-state.md
+  capabilities_dir: docs/capabilities
+  plans_dir: docs/plans
+  decisions_dir: docs/adr
+
+worktrees:
+  root: ../example-local-tool-worktrees
+  branch_prefix: local
+
+local:
+  provider: portless
+  route_pattern: example-local-tool-{worktree}.localhost
+  required_before_push: true
+
+preview:
+  provider: none
+  required_before_merge: false
+  require_preview_secrets: false
+
+production:
+  required_before_issue_close: false
+  smoke_paths: []
+
+drift:
+  mode: warn
+  mappings: []
+
+commands:
+  install: bun install
+  check: bun run check
+  test: bun test

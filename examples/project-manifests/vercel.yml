@@ -1,0 +1,47 @@
+version: 1
+project: example-web
+base_branch: main
+
+tracker:
+  provider: github
+
+docs:
+  constitution: docs/constitution.md
+  current_state: docs/current-state.md
+  capabilities_dir: docs/capabilities
+  plans_dir: docs/plans
+  decisions_dir: docs/adr
+
+worktrees:
+  root: ../example-web-worktrees
+  branch_prefix: codex
+
+local:
+  provider: portless
+  route_pattern: example-web-issue-{issue}.localhost
+  required_before_push: true
+
+preview:
+  provider: vercel
+  required_before_merge: true
+  environment: preview
+  require_preview_secrets: true
+
+production:
+  required_before_issue_close: true
+  smoke_paths:
+    - /
+    - /health
+
+drift:
+  mode: warn
+  mappings:
+    - source_paths:
+        - src/**
+      docs:
+        - docs/capabilities/app.md
+
+commands:
+  install: bun install
+  check: bun run check
+  test: bun test
