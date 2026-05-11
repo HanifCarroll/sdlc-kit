@@ -64,6 +64,24 @@ describe("runCli", () => {
     expect(capture.stderr).toEqual([]);
   });
 
+  test("doctor does not warn for a worktree root when run inside a linked worktree", () => {
+    const projectRoot = createLinkedWorktreeFixture();
+    const capture = createOutputCapture();
+
+    expect(runCli(["doctor"], { cwd: projectRoot, output: capture.output })).toBe(0);
+    expect(capture.stdout[0]).not.toContain("worktrees.root does not exist yet");
+    expect(capture.stderr).toEqual([]);
+  });
+
+  test("doctor still warns for a genuinely missing worktree root", () => {
+    const projectRoot = createMissingWorktreeRootFixture();
+    const capture = createOutputCapture();
+
+    expect(runCli(["doctor"], { cwd: projectRoot, output: capture.output })).toBe(0);
+    expect(capture.stdout[0]).toContain("worktrees.root does not exist yet");
+    expect(capture.stderr).toEqual([]);
+  });
+
   test("returns a useful doctor error when no project contract exists", () => {
     const projectRoot = mkdtempSync(join(tmpdir(), "sdlc-kit-empty-"));
     const capture = createOutputCapture();
@@ -361,6 +379,31 @@ tracker:
 commands:
   check: bun run check
   test: bun test
+`,
+  );
+  return projectRoot;
+}
+
+function createMissingWorktreeRootFixture(): string {
+  return createWorktreeRootFixture(mkdtempSync(join(tmpdir(), "sdlc-kit-missing-worktree-root-")));
+}
+
+function createLinkedWorktreeFixture(): string {
+  const tempRoot = mkdtempSync(join(tmpdir(), "sdlc-kit-linked-"));
+  const worktreesRoot = join(tempRoot, "fixture-worktrees");
+  return createWorktreeRootFixture(join(worktreesRoot, "issue-23-linked-worktree"));
+}
+
+function createWorktreeRootFixture(projectRoot: string): string {
+  mkdirSync(join(projectRoot, ".sdlc"), { recursive: true });
+  writeFileSync(
+    join(projectRoot, ".sdlc", "project.yml"),
+    `version: 1
+project: fixture
+worktrees:
+  root: ../fixture-worktrees
+commands:
+  check: bun run check
 `,
   );
   return projectRoot;
