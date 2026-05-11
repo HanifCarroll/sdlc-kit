@@ -316,3 +316,5 @@ function assertKnownKeys(value: Record<string, unknown>, key: string, knownKeys:
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+export * from "./templates";
