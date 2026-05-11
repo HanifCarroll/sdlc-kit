@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { GitHubAdapter, type GitHubCommandRunner } from "@sdlc-kit/github-adapter";
+import YAML from "yaml";
 import {
   PortlessAdapter,
   type PortlessCommandRunner,
@@ -50,7 +51,7 @@ export interface GitCommandRunner {
   run(args: string[], options?: GitCommandOptions): GitCommandResult;
 }
 
-const plannedCommands = new Set(["qa", "closeout"]);
+const plannedCommands = new Set(["closeout"]);
 
 const defaultOutput: CliOutput = {
   stdout: (message) => console.log(message),
@@ -83,6 +84,8 @@ export function runCli(argv: string[], options: RunCliOptions = {}): number {
       return runBlueprint(args, options, output);
     case "worktree":
       return runWorktree(args, options, output);
+    case "qa":
+      return runQa(args, options, output);
     case "route":
       return runRoute(args, options, output);
     case "drift":
@@ -287,6 +290,36 @@ function runWorktree(args: string[], options: RunCliOptions, output: CliOutput):
   }
 }
 
+function runQa(args: string[], options: RunCliOptions, output: CliOutput): number {
+  if (isHelpRequest(args)) {
+    output.stdout(qaCommandHelp());
+    return 0;
+  }
+
+  try {
+    const [subcommand = "list", ...rest] = args;
+    const project = loadProjectConfig(options.cwd);
+
+    if (subcommand === "record") {
+      const parsed = parseQaRecordOptions(rest);
+      const evidence = writeQaEvidence(project.projectRoot, parsed);
+      output.stdout(`sdlc qa record: wrote ${relative(project.projectRoot, evidence.path)}`);
+      return 0;
+    }
+
+    if (subcommand === "list") {
+      const parsed = parseQaListOptions(rest);
+      output.stdout(formatQaEvidenceList(readQaEvidence(project.projectRoot, parsed.issue)));
+      return 0;
+    }
+
+    throw new Error(`Unknown subcommand for sdlc qa: ${subcommand}`);
+  } catch (error) {
+    output.stderr(toErrorMessage(error));
+    return 1;
+  }
+}
+
 function runRoute(args: string[], options: RunCliOptions, output: CliOutput): number {
   if (isHelpRequest(args)) {
     output.stdout(routeCommandHelp());
@@ -412,12 +445,192 @@ interface WorktreeStartPlan {
   path: string;
 }
 
+type QaSurface = "local" | "preview" | "production";
+type QaStatus = "pass" | "fail" | "blocked";
+
+interface QaRecordOptions {
+  issue: number;
+  surface: QaSurface;
+  status: QaStatus;
+  url?: string;
+  command?: string;
+  screenshots: string[];
+  videos: string[];
+  notes: string[];
+  overwrite: boolean;
+}
+
+interface QaListOptions {
+  issue?: number;
+}
+
+interface QaEvidenceSummary {
+  issue: number;
+  surface: QaSurface;
+  status: QaStatus;
+  path: string;
+  url?: string;
+  screenshots: string[];
+  videos: string[];
+}
+
 interface DriftOptions {
   base?: string;
   changedFiles: string[];
   noDocImpactReason?: string;
   json: boolean;
   failOnWarn: boolean;
+}
+
+function parseQaRecordOptions(args: string[]): QaRecordOptions {
+  let issue: number | undefined;
+  let surface: QaSurface | undefined;
+  let status: QaStatus | undefined;
+  let url: string | undefined;
+  let command: string | undefined;
+  const screenshots: string[] = [];
+  const videos: string[] = [];
+  const notes: string[] = [];
+  let overwrite = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+
+    if (arg === "--overwrite" || arg === "--force") {
+      overwrite = true;
+      continue;
+    }
+    if (arg?.startsWith("--issue=")) {
+      issue = parsePositiveInteger(arg.slice("--issue=".length), "--issue");
+      continue;
+    }
+    if (arg === "--issue") {
+      index += 1;
+      issue = parsePositiveInteger(requiredOptionValue(args[index], "--issue"), "--issue");
+      continue;
+    }
+    if (arg?.startsWith("--surface=")) {
+      surface = parseQaSurface(arg.slice("--surface=".length));
+      continue;
+    }
+    if (arg === "--surface") {
+      index += 1;
+      surface = parseQaSurface(requiredOptionValue(args[index], "--surface"));
+      continue;
+    }
+    if (arg?.startsWith("--status=")) {
+      status = parseQaStatus(arg.slice("--status=".length));
+      continue;
+    }
+    if (arg === "--status") {
+      index += 1;
+      status = parseQaStatus(requiredOptionValue(args[index], "--status"));
+      continue;
+    }
+    if (arg?.startsWith("--url=")) {
+      url = requiredOptionValue(arg.slice("--url=".length), "--url");
+      continue;
+    }
+    if (arg === "--url") {
+      index += 1;
+      url = requiredOptionValue(args[index], "--url");
+      continue;
+    }
+    if (arg?.startsWith("--command=")) {
+      command = requiredOptionValue(arg.slice("--command=".length), "--command");
+      continue;
+    }
+    if (arg === "--command") {
+      index += 1;
+      command = requiredOptionValue(args[index], "--command");
+      continue;
+    }
+    if (arg?.startsWith("--screenshot=")) {
+      screenshots.push(requiredOptionValue(arg.slice("--screenshot=".length), "--screenshot"));
+      continue;
+    }
+    if (arg === "--screenshot") {
+      index += 1;
+      screenshots.push(requiredOptionValue(args[index], "--screenshot"));
+      continue;
+    }
+    if (arg?.startsWith("--video=")) {
+      videos.push(requiredOptionValue(arg.slice("--video=".length), "--video"));
+      continue;
+    }
+    if (arg === "--video") {
+      index += 1;
+      videos.push(requiredOptionValue(args[index], "--video"));
+      continue;
+    }
+    if (arg?.startsWith("--note=")) {
+      notes.push(requiredOptionValue(arg.slice("--note=".length), "--note"));
+      continue;
+    }
+    if (arg === "--note") {
+      index += 1;
+      notes.push(requiredOptionValue(args[index], "--note"));
+      continue;
+    }
+
+    throw new Error(`Unknown option for sdlc qa record: ${arg}`);
+  }
+
+  if (issue === undefined) {
+    throw new Error("sdlc qa record requires --issue.");
+  }
+  if (surface === undefined) {
+    throw new Error("sdlc qa record requires --surface.");
+  }
+  if (status === undefined) {
+    throw new Error("sdlc qa record requires --status.");
+  }
+
+  return {
+    issue,
+    surface,
+    status,
+    screenshots,
+    videos,
+    notes,
+    overwrite,
+    ...(url ? { url } : {}),
+    ...(command ? { command } : {}),
+  };
+}
+
+function parseQaListOptions(args: string[]): QaListOptions {
+  let issue: number | undefined;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg?.startsWith("--issue=")) {
+      issue = parsePositiveInteger(arg.slice("--issue=".length), "--issue");
+      continue;
+    }
+    if (arg === "--issue") {
+      index += 1;
+      issue = parsePositiveInteger(requiredOptionValue(args[index], "--issue"), "--issue");
+      continue;
+    }
+    throw new Error(`Unknown option for sdlc qa list: ${arg}`);
+  }
+
+  return issue === undefined ? {} : { issue };
+}
+
+function parseQaSurface(value: string): QaSurface {
+  if (value === "local" || value === "preview" || value === "production") {
+    return value;
+  }
+  throw new Error("--surface must be one of: local, preview, production.");
+}
+
+function parseQaStatus(value: string): QaStatus {
+  if (value === "pass" || value === "fail" || value === "blocked") {
+    return value;
+  }
+  throw new Error("--status must be one of: pass, fail, blocked.");
 }
 
 function parseWorktreeStartOptions(args: string[]): WorktreeStartOptions {
@@ -888,6 +1101,16 @@ Usage:
 Creates and inspects Git worktrees from the local .sdlc/project.yml contract. Worktree paths are created under worktrees.root, or ../<project>-worktrees when no root is configured.`;
 }
 
+function qaCommandHelp(): string {
+  return `sdlc qa
+
+Usage:
+  sdlc qa list [--issue 123]
+  sdlc qa record --issue 123 --surface local --status pass [--url url] [--command command] [--screenshot path-or-url] [--video path-or-url] [--note text] [--overwrite]
+
+Records local, preview, and production QA evidence under .sdlc/qa/. Screenshots and videos are rendered into the evidence Markdown. Existing evidence for the same issue and surface requires --overwrite.`;
+}
+
 function driftCommandHelp(): string {
   return `sdlc drift
 
@@ -1003,6 +1226,145 @@ function parseGitWorktreePorcelain(output: string): Array<{ path: string; branch
         ...(branchLine ? { branch: branchLine.slice("branch refs/heads/".length) } : {}),
       }];
     });
+}
+
+function writeQaEvidence(projectRoot: string, evidence: QaRecordOptions): { path: string } {
+  const directory = join(projectRoot, ".sdlc", "qa");
+  const path = join(directory, `issue-${evidence.issue}-${evidence.surface}.md`);
+  if (existsSync(path) && !evidence.overwrite) {
+    throw new Error(`QA evidence already exists: ${relative(projectRoot, path)}. Pass --overwrite to replace it.`);
+  }
+
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(path, renderQaEvidence(evidence));
+  return { path };
+}
+
+function readQaEvidence(projectRoot: string, issue: number | undefined): QaEvidenceSummary[] {
+  const directory = join(projectRoot, ".sdlc", "qa");
+  if (!existsSync(directory)) {
+    return [];
+  }
+
+  return readdirSync(directory)
+    .filter((file) => file.endsWith(".md"))
+    .filter((file) => issue === undefined || file.startsWith(`issue-${issue}-`))
+    .flatMap((file) => parseQaEvidenceSummary(join(directory, file), projectRoot));
+}
+
+function renderQaEvidence(evidence: QaRecordOptions): string {
+  const frontmatter: Record<string, unknown> = {
+    issue: evidence.issue,
+    surface: evidence.surface,
+    status: evidence.status,
+    recorded_at: new Date().toISOString(),
+  };
+  if (evidence.url) {
+    frontmatter.url = evidence.url;
+  }
+  if (evidence.command) {
+    frontmatter.command = evidence.command;
+  }
+  if (evidence.screenshots.length > 0) {
+    frontmatter.screenshots = evidence.screenshots;
+  }
+  if (evidence.videos.length > 0) {
+    frontmatter.videos = evidence.videos;
+  }
+
+  const lines = [
+    "---",
+    YAML.stringify(frontmatter).trimEnd(),
+    "---",
+    "",
+    `# QA Evidence: #${evidence.issue} ${evidence.surface}`,
+    "",
+    `Status: ${evidence.status}`,
+  ];
+
+  if (evidence.url) {
+    lines.push("", "## URL", "", evidence.url);
+  }
+  if (evidence.command) {
+    lines.push("", "## Command", "", `\`${evidence.command}\``);
+  }
+  if (evidence.screenshots.length > 0) {
+    lines.push("", "## Screenshots", "", ...evidence.screenshots.map((item, index) => `![Screenshot ${index + 1}](${item})`));
+  }
+  if (evidence.videos.length > 0) {
+    lines.push("", "## Videos", "", ...evidence.videos.map((item, index) => `![Video ${index + 1}](${item})`));
+  }
+  if (evidence.notes.length > 0) {
+    lines.push("", "## Notes", "", ...evidence.notes.map((note) => `- ${note}`));
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+function parseQaEvidenceSummary(path: string, projectRoot: string): QaEvidenceSummary[] {
+  const content = readFileSync(path, "utf8");
+  const match = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) {
+    return [];
+  }
+
+  const parsed = YAML.parse(match[1] ?? "") as unknown;
+  if (!isQaEvidenceFrontmatter(parsed)) {
+    return [];
+  }
+
+  return [{
+    issue: parsed.issue,
+    surface: parsed.surface,
+    status: parsed.status,
+    path: relative(projectRoot, path),
+    screenshots: parsed.screenshots ?? [],
+    videos: parsed.videos ?? [],
+    ...(parsed.url ? { url: parsed.url } : {}),
+  }];
+}
+
+function isQaEvidenceFrontmatter(value: unknown): value is {
+  issue: number;
+  surface: QaSurface;
+  status: QaStatus;
+  url?: string;
+  screenshots?: string[];
+  videos?: string[];
+} {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.issue === "number" &&
+    (record.surface === "local" || record.surface === "preview" || record.surface === "production") &&
+    (record.status === "pass" || record.status === "fail" || record.status === "blocked") &&
+    (record.url === undefined || typeof record.url === "string") &&
+    (record.screenshots === undefined || isStringArray(record.screenshots)) &&
+    (record.videos === undefined || isStringArray(record.videos))
+  );
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function formatQaEvidenceList(evidence: QaEvidenceSummary[]): string {
+  if (evidence.length === 0) {
+    return "sdlc qa list: no QA evidence recorded.";
+  }
+
+  return [
+    "sdlc qa list:",
+    ...evidence.map((item) => {
+      const media = [
+        item.screenshots.length > 0 ? `${item.screenshots.length} screenshot${item.screenshots.length === 1 ? "" : "s"}` : "",
+        item.videos.length > 0 ? `${item.videos.length} video${item.videos.length === 1 ? "" : "s"}` : "",
+      ].filter(Boolean);
+      return `- #${item.issue} ${item.surface}: ${item.status}${item.url ? ` ${item.url}` : ""}${media.length > 0 ? ` [${media.join(", ")}]` : ""} (${item.path})`;
+    }),
+  ].join("\n");
 }
 
 function formatWorktreeDryRun(plan: WorktreeStartPlan): string {

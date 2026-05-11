@@ -123,6 +123,8 @@ export function renderPreset(options: RenderPresetOptions): TemplateFile[] {
     templateFile(".sdlc/project.yml", renderProjectManifest(project, baseBranch, definition, packageManager)),
     templateFile(".sdlc/blueprints/.gitignore", blueprintsGitignore()),
     templateFile(".sdlc/blueprints/README.md", blueprintsReadme()),
+    templateFile(".sdlc/qa/.gitignore", qaGitignore()),
+    templateFile(".sdlc/qa/README.md", qaReadme()),
     templateFile("docs/constitution.md", constitutionDoc(project)),
     templateFile("docs/current-state.md", currentStateDoc(project)),
     templateFile("docs/capabilities/README.md", capabilitiesReadme()),
@@ -330,6 +332,22 @@ Generated issue blueprints are ignored by default. Commit only README/convention
 
 function blueprintsGitignore(): string {
   return `*.md
+!README.md
+`;
+}
+
+function qaReadme(): string {
+  return `# QA Evidence
+
+Use \`sdlc qa record\` to capture local, preview, and production verification evidence for issue closeout.
+
+Generated evidence files and media are ignored by default because they often contain local paths, screenshots, videos, or provider-specific URLs. Sync the useful summary back to the issue closeout.
+`;
+}
+
+function qaGitignore(): string {
+  return `*.md
+media/
 !README.md
 `;
 }
