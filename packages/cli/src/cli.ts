@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { findProjectRoot, loadProjectConfig } from "@sdlc-kit/core";
+import { loadProjectConfig } from "@sdlc-kit/core";
 
 export interface CliOutput {
   stdout(message: string): void;
@@ -77,8 +77,7 @@ Commands:
 
 function runDoctor(options: RunCliOptions, output: CliOutput): number {
   try {
-    const projectRoot = findProjectRoot(options.cwd);
-    const result = loadProjectConfig(projectRoot);
+    const result = loadProjectConfig(options.cwd);
     output.stdout(`sdlc doctor: loaded ${result.configPath}`);
     output.stdout(`project: ${result.config.project}`);
     return 0;

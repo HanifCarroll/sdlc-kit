@@ -57,9 +57,8 @@ describe("runCli", () => {
     const capture = createOutputCapture();
 
     expect(runCli(["doctor"], { cwd: projectRoot, output: capture.output })).toBe(1);
-    expect(capture.stderr).toEqual([
-      "No .sdlc/project.yml found. Run `sdlc init` or `sdlc adopt` first.",
-    ]);
+    expect(capture.stderr[0]).toContain("No .sdlc/project.yml found from");
+    expect(capture.stderr[0]).toContain("Run `sdlc init` or `sdlc adopt` first.");
   });
 });
 
