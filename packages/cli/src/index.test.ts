@@ -68,6 +68,28 @@ describe("runCli", () => {
     expect(capture.stderr[0]).toContain("Run `sdlc init` or `sdlc adopt` first.");
   });
 
+  test("doctor warns when Vercel preview checks point at production", () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), "sdlc-kit-vercel-preview-"));
+    mkdirSync(join(projectRoot, ".sdlc"));
+    writeFileSync(
+      join(projectRoot, ".sdlc", "project.yml"),
+      `version: 1
+project: fixture
+preview:
+  provider: vercel
+  required_before_merge: true
+  environment: production
+  require_preview_secrets: true
+`,
+    );
+    const capture = createOutputCapture();
+
+    expect(runCli(["doctor"], { cwd: projectRoot, output: capture.output })).toBe(0);
+    expect(capture.stdout[0]).toContain(
+      "vercel preview checks are configured for the production environment",
+    );
+  });
+
   test("init writes new-project artifacts", () => {
     const projectRoot = mkdtempSync(join(tmpdir(), "sdlc-kit-init-"));
     const capture = createOutputCapture();

@@ -515,6 +515,14 @@ function doctorWarnings(result: LoadProjectConfigResult): string[] {
 
   const previewProvider = config.preview?.provider ?? "none";
   if (
+    previewProvider === "vercel" &&
+    config.preview?.required_before_merge === true &&
+    config.preview.environment?.toLowerCase() === "production"
+  ) {
+    warnings.push("vercel preview checks are configured for the production environment; use preview or a non-production custom environment.");
+  }
+
+  if (
     previewProvider !== "none" &&
     config.preview?.required_before_merge === true &&
     config.preview.require_preview_secrets !== true
