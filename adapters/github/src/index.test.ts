@@ -124,6 +124,18 @@ describe("GitHubAdapter", () => {
     expect(create?.options?.input).toContain("TOKEN=[REDACTED]");
   });
 
+  test("closes issues explicitly", () => {
+    const runner = createMockRunner();
+
+    new GitHubAdapter({ runner }).closeIssue(28);
+
+    expect(runner.calls.map((call) => call.args)).toEqual([
+      ["--version"],
+      ["auth", "status"],
+      ["issue", "close", "28", "--reason", "completed"],
+    ]);
+  });
+
   test("reports missing gh and missing auth as actionable errors", () => {
     const missingGh = createMockRunner({ versionExitCode: 127 });
     expect(() => new GitHubAdapter({ runner: missingGh }).checkHealth()).toThrow(

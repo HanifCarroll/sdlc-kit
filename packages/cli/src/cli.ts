@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { GitHubAdapter, type GitHubCommandRunner } from "@sdlc-kit/github-adapter";
+import { GitHubAdapter, type CloseoutEvidence, type GitHubCommandRunner } from "@sdlc-kit/github-adapter";
 import YAML from "yaml";
 import {
   PortlessAdapter,
@@ -51,7 +51,7 @@ export interface GitCommandRunner {
   run(args: string[], options?: GitCommandOptions): GitCommandResult;
 }
 
-const plannedCommands = new Set(["closeout"]);
+const plannedCommands = new Set<string>();
 
 const defaultOutput: CliOutput = {
   stdout: (message) => console.log(message),
@@ -90,6 +90,8 @@ export function runCli(argv: string[], options: RunCliOptions = {}): number {
       return runRoute(args, options, output);
     case "drift":
       return runDrift(args, options, output);
+    case "closeout":
+      return runCloseout(args, options, output);
     default:
       if (command && plannedCommands.has(command)) {
         output.stderr(plannedCommandText(command, args));
@@ -320,6 +322,49 @@ function runQa(args: string[], options: RunCliOptions, output: CliOutput): numbe
   }
 }
 
+function runCloseout(args: string[], options: RunCliOptions, output: CliOutput): number {
+  if (isHelpRequest(args)) {
+    output.stdout(closeoutCommandHelp());
+    return 0;
+  }
+
+  try {
+    const parsed = parseCloseoutOptions(args);
+    const project = loadProjectConfig(options.cwd);
+    if (project.config.tracker?.provider !== "github") {
+      throw new Error("sdlc closeout currently requires tracker.provider: github.");
+    }
+
+    const qaEvidence = parsed.includeQa ? readQaEvidence(project.projectRoot, parsed.issueNumber) : [];
+    const verification = [...parsed.verification, ...qaEvidence.map(formatQaEvidenceVerification)];
+    if (verification.length === 0) {
+      throw new Error("sdlc closeout requires --verification or --include-qa evidence.");
+    }
+
+    const github =
+      options.githubRunner === undefined
+        ? new GitHubAdapter({ cwd: project.projectRoot })
+        : new GitHubAdapter({ cwd: project.projectRoot, runner: options.githubRunner });
+    const evidence: CloseoutEvidence = {
+      verification,
+      ...(parsed.summary ? { summary: parsed.summary } : {}),
+      ...(parsed.production ? { production: parsed.production } : {}),
+      ...(parsed.notes.length > 0 ? { notes: parsed.notes } : {}),
+    };
+
+    github.writeCloseoutComment(parsed.issueNumber, evidence);
+    if (parsed.closeIssue) {
+      github.closeIssue(parsed.issueNumber);
+    }
+
+    output.stdout(formatCloseoutResult(parsed, qaEvidence.length));
+    return 0;
+  } catch (error) {
+    output.stderr(toErrorMessage(error));
+    return 1;
+  }
+}
+
 function runRoute(args: string[], options: RunCliOptions, output: CliOutput): number {
   if (isHelpRequest(args)) {
     output.stdout(routeCommandHelp());
@@ -474,12 +519,106 @@ interface QaEvidenceSummary {
   videos: string[];
 }
 
+interface CloseoutOptions {
+  issueNumber: number;
+  summary?: string;
+  verification: string[];
+  production?: string;
+  notes: string[];
+  includeQa: boolean;
+  closeIssue: boolean;
+}
+
 interface DriftOptions {
   base?: string;
   changedFiles: string[];
   noDocImpactReason?: string;
   json: boolean;
   failOnWarn: boolean;
+}
+
+function parseCloseoutOptions(args: string[]): CloseoutOptions {
+  let issueNumber: number | undefined;
+  let summary: string | undefined;
+  const verification: string[] = [];
+  let production: string | undefined;
+  const notes: string[] = [];
+  let includeQa = false;
+  let closeIssue = false;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === undefined) {
+      continue;
+    }
+
+    if (arg === "--include-qa") {
+      includeQa = true;
+      continue;
+    }
+    if (arg === "--close") {
+      closeIssue = true;
+      continue;
+    }
+    if (arg?.startsWith("--summary=")) {
+      summary = requiredOptionValue(arg.slice("--summary=".length), "--summary");
+      continue;
+    }
+    if (arg === "--summary") {
+      index += 1;
+      summary = requiredOptionValue(args[index], "--summary");
+      continue;
+    }
+    if (arg?.startsWith("--verification=")) {
+      verification.push(requiredOptionValue(arg.slice("--verification=".length), "--verification"));
+      continue;
+    }
+    if (arg === "--verification") {
+      index += 1;
+      verification.push(requiredOptionValue(args[index], "--verification"));
+      continue;
+    }
+    if (arg?.startsWith("--production=")) {
+      production = requiredOptionValue(arg.slice("--production=".length), "--production");
+      continue;
+    }
+    if (arg === "--production") {
+      index += 1;
+      production = requiredOptionValue(args[index], "--production");
+      continue;
+    }
+    if (arg?.startsWith("--note=")) {
+      notes.push(requiredOptionValue(arg.slice("--note=".length), "--note"));
+      continue;
+    }
+    if (arg === "--note") {
+      index += 1;
+      notes.push(requiredOptionValue(args[index], "--note"));
+      continue;
+    }
+    if (arg.startsWith("-")) {
+      throw new Error(`Unknown option for sdlc closeout: ${arg}`);
+    }
+    if (issueNumber !== undefined) {
+      throw new Error(`Unexpected extra argument for sdlc closeout: ${arg}`);
+    }
+
+    issueNumber = parsePositiveInteger(arg, "issue");
+  }
+
+  if (issueNumber === undefined) {
+    throw new Error("sdlc closeout requires an issue number.");
+  }
+
+  return {
+    issueNumber,
+    verification,
+    notes,
+    includeQa,
+    closeIssue,
+    ...(summary ? { summary } : {}),
+    ...(production ? { production } : {}),
+  };
 }
 
 function parseQaRecordOptions(args: string[]): QaRecordOptions {
@@ -1111,6 +1250,15 @@ Usage:
 Records local, preview, and production QA evidence under .sdlc/qa/. Screenshots and videos are rendered into the evidence Markdown. Existing evidence for the same issue and surface requires --overwrite.`;
 }
 
+function closeoutCommandHelp(): string {
+  return `sdlc closeout
+
+Usage:
+  sdlc closeout <issue-number> --verification text [--summary text] [--production text] [--note text] [--include-qa] [--close]
+
+Posts an SDLC closeout comment to the configured GitHub issue. Pass --include-qa to include recorded .sdlc/qa/ evidence for the issue. Pass --close to close the issue after the comment is posted.`;
+}
+
 function driftCommandHelp(): string {
   return `sdlc drift
 
@@ -1364,6 +1512,29 @@ function formatQaEvidenceList(evidence: QaEvidenceSummary[]): string {
       ].filter(Boolean);
       return `- #${item.issue} ${item.surface}: ${item.status}${item.url ? ` ${item.url}` : ""}${media.length > 0 ? ` [${media.join(", ")}]` : ""} (${item.path})`;
     }),
+  ].join("\n");
+}
+
+function formatQaEvidenceVerification(evidence: QaEvidenceSummary): string {
+  const media = [
+    evidence.screenshots.length > 0 ? `${evidence.screenshots.length} screenshot${evidence.screenshots.length === 1 ? "" : "s"}` : "",
+    evidence.videos.length > 0 ? `${evidence.videos.length} video${evidence.videos.length === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+  return [
+    `QA ${evidence.surface}: ${evidence.status}`,
+    evidence.url ? `url=${evidence.url}` : "",
+    media.length > 0 ? `media=${media.join(", ")}` : "",
+    `file=${evidence.path}`,
+  ].filter(Boolean).join("; ");
+}
+
+function formatCloseoutResult(options: CloseoutOptions, qaEvidenceCount: number): string {
+  return [
+    "sdlc closeout: posted SDLC closeout comment",
+    `issue: #${options.issueNumber}`,
+    `verification items: ${options.verification.length + qaEvidenceCount}`,
+    `qa evidence included: ${qaEvidenceCount}`,
+    `closed: ${String(options.closeIssue)}`,
   ].join("\n");
 }
 

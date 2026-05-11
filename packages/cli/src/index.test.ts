@@ -49,16 +49,6 @@ describe("runCli", () => {
     ]);
   });
 
-  test("keeps planned commands visible without pretending they are implemented", () => {
-    const capture = createOutputCapture();
-
-    expect(runCli(["closeout", "123"], { output: capture.output })).toBe(1);
-    expect(capture.stdout).toEqual([]);
-    expect(capture.stderr).toEqual([
-      "sdlc closeout: planned command, not implemented yet.\nargs: 123",
-    ]);
-  });
-
   test("loads a project contract for doctor", () => {
     const projectRoot = createProjectFixture();
     const capture = createOutputCapture();
@@ -410,6 +400,85 @@ branch refs/heads/codex/26-worktree-command
     expect(list.stdout[0]).toContain("sdlc qa list:");
     expect(list.stdout[0]).toContain("#27 production: blocked https://example.com");
     expect(list.stdout[0]).toContain("[1 screenshot]");
+  });
+
+  test("closeout posts evidence through the GitHub adapter", () => {
+    const projectRoot = createProjectFixture();
+    const capture = createOutputCapture();
+    const githubRunner = createGitHubRunner({ number: 28, title: "Implement sdlc closeout command" });
+
+    expect(
+      runCli(
+        [
+          "closeout",
+          "28",
+          "--summary",
+          "Merged PR #33",
+          "--verification",
+          "bun run ci -> pass",
+          "--production",
+          "N/A",
+          "--note",
+          "No follow-ups.",
+        ],
+        {
+          cwd: projectRoot,
+          output: capture.output,
+          githubRunner,
+        },
+      ),
+    ).toBe(0);
+
+    const comment = githubRunner.calls.find((call) => call.args.join(" ") === "issue comment 28 --body-file -");
+    expect(comment?.options?.input).toContain("## SDLC Closeout");
+    expect(comment?.options?.input).toContain("Merged PR #33");
+    expect(comment?.options?.input).toContain("- bun run ci -> pass");
+    expect(comment?.options?.input).toContain("N/A");
+    expect(capture.stdout[0]).toContain("sdlc closeout: posted SDLC closeout comment");
+  });
+
+  test("closeout can include recorded QA evidence and close the issue", () => {
+    const projectRoot = createProjectFixture();
+    const record = createOutputCapture();
+    const closeout = createOutputCapture();
+    const githubRunner = createGitHubRunner({ number: 28, title: "Implement sdlc closeout command" });
+
+    expect(
+      runCli(
+        [
+          "qa",
+          "record",
+          "--issue=28",
+          "--surface=preview",
+          "--status=pass",
+          "--url=https://preview.example.com",
+          "--screenshot=artifacts/preview.png",
+        ],
+        {
+          cwd: projectRoot,
+          output: record.output,
+        },
+      ),
+    ).toBe(0);
+
+    expect(
+      runCli(["closeout", "28", "--include-qa", "--close"], {
+        cwd: projectRoot,
+        output: closeout.output,
+        githubRunner,
+      }),
+    ).toBe(0);
+
+    const comment = githubRunner.calls.find((call) => call.args.join(" ") === "issue comment 28 --body-file -");
+    expect(comment?.options?.input).toContain("QA preview: pass");
+    expect(comment?.options?.input).toContain("media=1 screenshot");
+    expect(githubRunner.calls.map((call) => call.args)).toContainEqual([
+      "issue",
+      "close",
+      "28",
+      "--reason",
+      "completed",
+    ]);
   });
 
   test("route list skips projects without local routes configured", () => {

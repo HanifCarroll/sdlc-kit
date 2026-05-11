@@ -14,6 +14,7 @@ Implemented commands:
 - `sdlc qa`
 - `sdlc route`
 - `sdlc drift`
+- `sdlc closeout`
 
 Planned commands must fail honestly until implemented.
 
@@ -45,7 +46,6 @@ bun run sdlc doctor
 
 ## Limitations
 
-- `closeout` is a planned CLI surface until its implementation issue lands.
 - GitHub-backed commands require the GitHub CLI and authenticated `gh`.
 - Provider preview commands are evidence interpreters before they become full provider API clients.
 
