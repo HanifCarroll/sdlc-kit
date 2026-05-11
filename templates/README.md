@@ -14,7 +14,7 @@ The first supported presets are:
 Generated output covers:
 
 - base `.sdlc/project.yml`
-- blueprint directory README
+- blueprint directory README and local blueprint gitignore
 - constitution/current-state/capability docs
 - historical plans and ADR directories
 - GitHub issue templates

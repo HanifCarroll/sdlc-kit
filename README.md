@@ -33,6 +33,7 @@ sdlc adopt --preset full
 sdlc adopt --preset full --apply
 sdlc doctor
 sdlc blueprint 123
+sdlc blueprint 123 --sync
 sdlc worktree start 123
 sdlc qa preview 123
 sdlc drift
@@ -46,6 +47,7 @@ Current scaffold:
 ```sh
 bun install
 bun run sdlc --help
+bun run sdlc blueprint 123
 bun run ci
 ```
 

@@ -121,6 +121,7 @@ export function renderPreset(options: RenderPresetOptions): TemplateFile[] {
 
   return [
     templateFile(".sdlc/project.yml", renderProjectManifest(project, baseBranch, definition, packageManager)),
+    templateFile(".sdlc/blueprints/.gitignore", blueprintsGitignore()),
     templateFile(".sdlc/blueprints/README.md", blueprintsReadme()),
     templateFile("docs/constitution.md", constitutionDoc(project)),
     templateFile("docs/current-state.md", currentStateDoc(project)),
@@ -318,6 +319,14 @@ function blueprintsReadme(): string {
   return `# Blueprints
 
 Issue blueprints are tactical execution plans. Keep them local by default and sync the useful summary back to the issue audit trail.
+
+Generated issue blueprints are ignored by default. Commit only README/convention files here unless your team intentionally promotes a blueprint into durable docs.
+`;
+}
+
+function blueprintsGitignore(): string {
+  return `*.md
+!README.md
 `;
 }
 
@@ -378,6 +387,17 @@ function plansReadme(): string {
   return `# Plans
 
 Historical plans preserve larger architecture, migration, or release reasoning. Plans may become stale; current-state and capability docs should not.
+
+Every committed plan except README.md and underscore-prefixed templates must start with YAML frontmatter:
+
+\`\`\`yaml
+---
+status: draft
+created: "2026-05-10"
+---
+\`\`\`
+
+Allowed statuses: draft, active, approved, superseded, archived.
 `;
 }
 

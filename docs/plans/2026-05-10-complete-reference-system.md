@@ -1,7 +1,9 @@
-# Complete AI-Assisted Engineering Reference System
+---
+status: approved
+created: "2026-05-10"
+---
 
-Status: approved
-Date: 2026-05-10
+# Complete AI-Assisted Engineering Reference System
 
 ## Goal
 

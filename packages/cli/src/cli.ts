@@ -1,10 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, relative, resolve } from "node:path";
+import { GitHubAdapter, type GitHubCommandRunner } from "@sdlc-kit/github-adapter";
 import {
   inspectTemplateFiles,
   isPresetName,
   loadProjectConfig,
   renderPreset,
+  validatePlanDocuments,
+  writeIssueBlueprint,
   writeTemplateFiles,
   type LoadProjectConfigResult,
   type PresetName,
@@ -21,9 +24,10 @@ export interface CliOutput {
 export interface RunCliOptions {
   cwd?: string;
   output?: CliOutput;
+  githubRunner?: GitHubCommandRunner;
 }
 
-const plannedCommands = new Set(["blueprint", "worktree", "qa", "drift", "closeout", "route"]);
+const plannedCommands = new Set(["worktree", "qa", "drift", "closeout", "route"]);
 
 const defaultOutput: CliOutput = {
   stdout: (message) => console.log(message),
@@ -52,6 +56,8 @@ export function runCli(argv: string[], options: RunCliOptions = {}): number {
       return runAdopt(args, options, output);
     case "doctor":
       return runDoctor(args, options, output);
+    case "blueprint":
+      return runBlueprint(args, options, output);
     default:
       if (command && plannedCommands.has(command)) {
         output.stderr(plannedCommandText(command, args));
@@ -158,6 +164,51 @@ Validates the local .sdlc/project.yml manifest and reports command, provider, do
   }
 }
 
+function runBlueprint(args: string[], options: RunCliOptions, output: CliOutput): number {
+  if (isHelpRequest(args)) {
+    output.stdout(`sdlc blueprint
+
+Usage:
+  sdlc blueprint <issue-number> [--sync] [--overwrite]
+
+Writes .sdlc/blueprints/issue-<number>.md from the configured GitHub issue. Pass --sync to post or update the marked blueprint comment on the issue.`);
+    return 0;
+  }
+
+  try {
+    const parsed = parseBlueprintCommandOptions(args);
+    const project = loadProjectConfig(options.cwd);
+
+    if (project.config.tracker?.provider !== "github") {
+      throw new Error("sdlc blueprint currently requires tracker.provider: github.");
+    }
+
+    const github =
+      options.githubRunner === undefined
+        ? new GitHubAdapter({ cwd: project.projectRoot })
+        : new GitHubAdapter({ cwd: project.projectRoot, runner: options.githubRunner });
+    const issue = github.getIssue(parsed.issueNumber);
+    const write = writeIssueBlueprint(project.projectRoot, issue, { overwrite: parsed.overwrite });
+    const lines = [
+      `sdlc blueprint: ${write.action} ${relative(project.projectRoot, write.path)}`,
+      `gitignore: ${write.gitignoreAction} ${relative(project.projectRoot, write.gitignorePath)}`,
+    ];
+
+    if (parsed.sync) {
+      const sync = github.upsertBlueprintComment(parsed.issueNumber, write.content);
+      lines.push(`github: ${sync.action} blueprint comment`);
+    } else {
+      lines.push("github: skipped (pass --sync to update the issue comment)");
+    }
+
+    output.stdout(lines.join("\n"));
+    return 0;
+  } catch (error) {
+    output.stderr(toErrorMessage(error));
+    return 1;
+  }
+}
+
 interface TemplateCommandOptions {
   cwd: string;
   preset: PresetName;
@@ -166,6 +217,47 @@ interface TemplateCommandOptions {
   packageManager: "bun" | "npm" | "pnpm";
   apply: boolean;
   overwrite: boolean;
+}
+
+interface BlueprintCommandOptions {
+  issueNumber: number;
+  sync: boolean;
+  overwrite: boolean;
+}
+
+function parseBlueprintCommandOptions(args: string[]): BlueprintCommandOptions {
+  let issueNumber: number | undefined;
+  let sync = false;
+  let overwrite = false;
+
+  for (const arg of args) {
+    if (arg === "--sync") {
+      sync = true;
+      continue;
+    }
+    if (arg === "--overwrite" || arg === "--force") {
+      overwrite = true;
+      continue;
+    }
+    if (arg.startsWith("-")) {
+      throw new Error(`Unknown option for sdlc blueprint: ${arg}`);
+    }
+    if (issueNumber !== undefined) {
+      throw new Error(`Unexpected extra argument for sdlc blueprint: ${arg}`);
+    }
+
+    const parsed = Number(arg);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new Error("sdlc blueprint requires a positive GitHub issue number.");
+    }
+    issueNumber = parsed;
+  }
+
+  if (issueNumber === undefined) {
+    throw new Error("sdlc blueprint requires an issue number.");
+  }
+
+  return { issueNumber, sync, overwrite };
 }
 
 function parseTemplateCommandOptions(
@@ -410,6 +502,14 @@ function doctorWarnings(result: LoadProjectConfigResult): string[] {
   for (const [label, path] of Object.entries(paths)) {
     if (path && !existsSync(path)) {
       warnings.push(`${pathLabels[label] ?? label} does not exist yet: ${relative(projectRoot, path)}`);
+    }
+  }
+
+  if (paths.plansDir && existsSync(paths.plansDir)) {
+    for (const plan of validatePlanDocuments(paths.plansDir)) {
+      for (const error of plan.errors) {
+        warnings.push(`docs.plans_dir ${plan.relativePath}: ${error}`);
+      }
     }
   }
 

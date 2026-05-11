@@ -13,6 +13,7 @@ import {
 
 const expectedFileSetSnapshot = [
   ".sdlc/project.yml",
+  ".sdlc/blueprints/.gitignore",
   ".sdlc/blueprints/README.md",
   "docs/constitution.md",
   "docs/current-state.md",
