@@ -71,3 +71,5 @@ commands:
 Supported providers are `github`, `vercel`, `cloudflare`, `portless`, and `none`.
 
 Unsupported keys fail validation so misspelled contract fields do not silently drift.
+
+For Vercel, preview verification must not point at `production`. Use `preview` for standard Vercel preview deployments or a non-production custom environment when the project has one.

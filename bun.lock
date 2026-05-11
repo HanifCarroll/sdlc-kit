@@ -20,6 +20,14 @@
         "typescript": "^5.9.0",
       },
     },
+    "adapters/vercel": {
+      "name": "@sdlc-kit/vercel-adapter",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@types/bun": "^1.3.0",
+        "typescript": "^5.9.0",
+      },
+    },
     "packages/cli": {
       "name": "sdlc-kit",
       "version": "0.0.0",
@@ -52,6 +60,8 @@
     "@sdlc-kit/core": ["@sdlc-kit/core@workspace:packages/core"],
 
     "@sdlc-kit/github-adapter": ["@sdlc-kit/github-adapter@workspace:adapters/github"],
+
+    "@sdlc-kit/vercel-adapter": ["@sdlc-kit/vercel-adapter@workspace:adapters/vercel"],
 
     "@types/bun": ["@types/bun@1.3.13", "", { "dependencies": { "bun-types": "1.3.13" } }, "sha512-9fqXWk5YIHGGnUau9TEi+qdlTYDAnOj+xLCmSTwXfAIqXr2x4tytJb43E9uCvt09zJURKXwAtkoH4nLQfzeTXw=="],
 

@@ -5,7 +5,7 @@ Adapters connect the core SDLC contract to external systems.
 Initial built-in adapters:
 
 - GitHub tracker adapter: `adapters/github`
-- Vercel preview adapter
+- Vercel preview adapter: `adapters/vercel`
 - Cloudflare preview adapter
 - Portless local route adapter
 - Codex/gstack workflow adapters

@@ -1,0 +1,27 @@
+{
+  "name": "@sdlc-kit/vercel-adapter",
+  "version": "0.0.0",
+  "description": "Vercel preview deployment adapter for sdlc-kit.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HanifCarroll/sdlc-kit.git",
+    "directory": "adapters/vercel"
+  },
+  "bugs": {
+    "url": "https://github.com/HanifCarroll/sdlc-kit/issues"
+  },
+  "homepage": "https://github.com/HanifCarroll/sdlc-kit#readme",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.9.0"
+  }
+}
