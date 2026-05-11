@@ -8,6 +8,11 @@ import type {
   GitHubCommandRunner,
 } from "@sdlc-kit/github-adapter";
 import { BLUEPRINT_COMMENT_MARKER } from "@sdlc-kit/github-adapter";
+import type {
+  PortlessCommandOptions,
+  PortlessCommandResult,
+  PortlessCommandRunner,
+} from "@sdlc-kit/portless-adapter";
 import { cliPackage, runCli } from "./cli";
 
 describe("runCli", () => {
@@ -212,6 +217,59 @@ preview:
     expect(comment?.options?.input).toContain("# Blueprint: #6 Blueprint handling");
     expect(capture.stdout[0]).toContain("github: created blueprint comment");
   });
+
+  test("route list skips projects without local routes configured", () => {
+    const projectRoot = createProjectFixture();
+    const capture = createOutputCapture();
+
+    expect(runCli(["route", "list"], { cwd: projectRoot, output: capture.output })).toBe(0);
+    expect(capture.stdout[0]).toContain("local routes are not configured");
+    expect(capture.stderr).toEqual([]);
+  });
+
+  test("route ensure registers an owned Portless route", () => {
+    const projectRoot = createPortlessProjectFixture();
+    const capture = createOutputCapture();
+    const portlessRunner = createPortlessRunner([
+      portlessResult("[]"),
+      portlessResult("registered"),
+    ]);
+
+    expect(
+      runCli(["route", "ensure", "--issue", "9", "--port", "4321"], {
+        cwd: projectRoot,
+        output: capture.output,
+        portlessRunner,
+      }),
+    ).toBe(0);
+
+    expect(capture.stdout[0]).toContain("Created Portless route https://fixture-issue-9.localhost -> 4321");
+    expect(portlessRunner.calls.map((call) => call.args)).toEqual([
+      ["list"],
+      ["alias", "fixture-issue-9", "4321"],
+    ]);
+    expect(JSON.parse(readFileSync(join(projectRoot, ".sdlc", "routes.local.json"), "utf8")).routes).toHaveLength(1);
+  });
+
+  test("route ensure reports port conflicts as command failures", () => {
+    const projectRoot = createPortlessProjectFixture();
+    const capture = createOutputCapture();
+    const portlessRunner = createPortlessRunner([
+      portlessResult(JSON.stringify({ routes: [{ name: "fixture-issue-9", port: 3000 }] })),
+    ]);
+
+    expect(
+      runCli(["route", "ensure", "--issue=9", "--port=4321"], {
+        cwd: projectRoot,
+        output: capture.output,
+        portlessRunner,
+      }),
+    ).toBe(1);
+
+    expect(capture.stdout[0]).toContain("already points at port 3000");
+    expect(capture.stdout[0]).toContain("pass --force");
+    expect(capture.stderr).toEqual([]);
+  });
 });
 
 function createOutputCapture(): {
@@ -241,6 +299,25 @@ function createProjectFixture(): string {
 project: fixture
 tracker:
   provider: github
+commands:
+  check: bun run check
+  test: bun test
+`,
+  );
+  return projectRoot;
+}
+
+function createPortlessProjectFixture(): string {
+  const projectRoot = mkdtempSync(join(tmpdir(), "sdlc-kit-portless-project-"));
+  mkdirSync(join(projectRoot, ".sdlc"));
+  writeFileSync(
+    join(projectRoot, ".sdlc", "project.yml"),
+    `version: 1
+project: fixture
+local:
+  provider: portless
+  route_pattern: fixture-issue-{issue}.localhost
+  required_before_push: true
 commands:
   check: bun run check
   test: bun test
@@ -289,5 +366,25 @@ function createGitHubRunner(): MockGitHubRunner {
 }
 
 function githubResult(exitCode: number, stdout = "", stderr = ""): GitHubCommandResult {
+  return { exitCode, stdout, stderr };
+}
+
+interface MockPortlessRunner extends PortlessCommandRunner {
+  calls: Array<{ args: string[]; options?: PortlessCommandOptions }>;
+}
+
+function createPortlessRunner(results: PortlessCommandResult[]): MockPortlessRunner {
+  const calls: MockPortlessRunner["calls"] = [];
+
+  return {
+    calls,
+    run(args, options) {
+      calls.push(options === undefined ? { args } : { args, options });
+      return results.shift() ?? portlessResult("");
+    },
+  };
+}
+
+function portlessResult(stdout = "", stderr = "", exitCode = 0): PortlessCommandResult {
   return { exitCode, stdout, stderr };
 }

@@ -34,12 +34,13 @@ sdlc adopt --preset full --apply
 sdlc doctor
 sdlc blueprint 123
 sdlc blueprint 123 --sync
+sdlc route list
+sdlc route ensure --issue 123 --port 3000
+sdlc route cleanup --issue 123
 sdlc worktree start 123
 sdlc qa preview 123
 sdlc drift
 sdlc closeout 123
-sdlc route list
-sdlc route cleanup
 ```
 
 Current scaffold:
@@ -48,6 +49,7 @@ Current scaffold:
 bun install
 bun run sdlc --help
 bun run sdlc blueprint 123
+bun run sdlc route list
 bun run ci
 ```
 
