@@ -13,6 +13,7 @@ This file summarizes what `sdlc-kit` currently ships and what remains intentiona
 - `sdlc qa` for recording local, preview, and production QA evidence, including optional screenshots and videos, under `.sdlc/qa/`.
 - `sdlc route` for owned Portless local QA routes.
 - `sdlc drift` for mapping source changes to required docs/capability updates.
+- `sdlc closeout` for posting SDLC closeout comments and optionally closing GitHub issues.
 - Typed GitHub adapter for issue metadata, blueprint comments, and closeout comments.
 - Typed Vercel and Cloudflare preview adapters for interpreting preview deployment evidence.
 - Typed Portless adapter for local route ownership.
@@ -21,9 +22,8 @@ This file summarizes what `sdlc-kit` currently ships and what remains intentiona
 
 ## Current Limits
 
-- `sdlc closeout` is still being implemented.
-- The package has not been published to npm.
 - Provider adapters interpret supplied evidence; most do not yet fetch provider APIs directly.
+- The package has not been published to npm.
 - Drift mappings start empty in generated projects and must be configured per repo.
 - The CLI assumes GitHub for issue blueprint sync and closeout.
 

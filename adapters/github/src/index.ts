@@ -152,6 +152,11 @@ export class GitHubAdapter {
     });
   }
 
+  closeIssue(issueNumber: number): void {
+    this.checkHealth();
+    this.runGh(["issue", "close", String(issueNumber), "--reason", "completed"]);
+  }
+
   private runJson<T>(args: string[]): T {
     const result = this.runGh(args);
     try {
