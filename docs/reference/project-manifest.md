@@ -83,6 +83,12 @@ Supported providers are `github`, `vercel`, `cloudflare`, `portless`, and `none`
 
 Unsupported keys fail validation so misspelled contract fields do not silently drift.
 
+## Worktree Paths
+
+Relative manifest paths are resolved from the checkout that contains `.sdlc/project.yml`. In the canonical checkout, `worktrees.root: ../example-app-worktrees` resolves to a sibling directory beside the repo.
+
+When the same manifest is read from a linked worktree inside that sibling directory, `sdlc doctor` treats the linked worktree's parent directory as the configured worktree root if the parent name matches `worktrees.root`. That keeps doctor from reporting a missing nested worktree root while still warning when the root is genuinely absent.
+
 For Vercel, preview verification must not point at `production`. Use `preview` for standard Vercel preview deployments or a non-production custom environment when the project has one.
 
 For Cloudflare, preview verification must also confirm preview/prod binding separation. Pages preview deployments and Workers preview URLs can mirror production code, but preview secrets, bindings, data stores, and Access rules should be intentionally separated or explicitly accepted before merge.

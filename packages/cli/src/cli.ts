@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { basename, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { GitHubAdapter, type GitHubCommandRunner } from "@sdlc-kit/github-adapter";
 import {
   PortlessAdapter,
@@ -801,9 +801,13 @@ function doctorWarnings(result: LoadProjectConfigResult): string[] {
   };
 
   for (const [label, path] of Object.entries(paths)) {
-    if (path && !existsSync(path)) {
-      warnings.push(`${pathLabels[label] ?? label} does not exist yet: ${relative(projectRoot, path)}`);
+    if (!path || existsSync(path)) {
+      continue;
     }
+    if (label === "worktreesRoot" && isCurrentCheckoutInsideConfiguredWorktreeRoot(result, path)) {
+      continue;
+    }
+    warnings.push(`${pathLabels[label] ?? label} does not exist yet: ${relative(projectRoot, path)}`);
   }
 
   if (paths.plansDir && existsSync(paths.plansDir)) {
@@ -853,6 +857,19 @@ function doctorWarnings(result: LoadProjectConfigResult): string[] {
   warnings.push(...providerWarnings(config.preview?.provider, "preview"));
 
   return warnings;
+}
+
+function isCurrentCheckoutInsideConfiguredWorktreeRoot(
+  result: LoadProjectConfigResult,
+  resolvedWorktreesRoot: string,
+): boolean {
+  const configuredRoot = result.config.worktrees?.root;
+  if (!configuredRoot || isAbsolute(configuredRoot)) {
+    return false;
+  }
+
+  const currentParent = dirname(result.projectRoot);
+  return existsSync(currentParent) && basename(currentParent) === basename(resolvedWorktreesRoot);
 }
 
 function providerWarnings(provider: string | undefined, surface: string): string[] {
