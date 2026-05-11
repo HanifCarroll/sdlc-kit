@@ -87,6 +87,10 @@ Implemented CLI surface:
 - `sdlc adopt` is report-first. Writes require `--apply`.
 - Drift checks start warn-only for adopted repos.
 
+## Skill System
+
+The target first-party skill taxonomy and essential v1 set are documented in [docs/concepts/skills.md](docs/concepts/skills.md).
+
 ## Project Manifest
 
 Repo behavior is configured through [`.sdlc/project.yml`](.sdlc/project.yml). The manifest schema and example fields are documented in [docs/reference/project-manifest.md](docs/reference/project-manifest.md).
