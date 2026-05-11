@@ -10,6 +10,7 @@ Implemented commands:
 - `sdlc adopt`
 - `sdlc doctor`
 - `sdlc blueprint`
+- `sdlc worktree`
 - `sdlc route`
 - `sdlc drift`
 
@@ -43,7 +44,7 @@ bun run sdlc doctor
 
 ## Limitations
 
-- `worktree`, `qa`, and `closeout` are planned CLI surfaces until their implementation issues land.
+- `qa` and `closeout` are planned CLI surfaces until their implementation issues land.
 - GitHub-backed commands require the GitHub CLI and authenticated `gh`.
 - Provider preview commands are evidence interpreters before they become full provider API clients.
 
