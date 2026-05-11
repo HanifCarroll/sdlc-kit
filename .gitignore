@@ -2,5 +2,7 @@ node_modules/
 bun.lockb
 dist/
 .sdlc/routes.local.json
-.sdlc/blueprints/
+.sdlc/blueprints/*
+!.sdlc/blueprints/.gitignore
+!.sdlc/blueprints/README.md
 .DS_Store

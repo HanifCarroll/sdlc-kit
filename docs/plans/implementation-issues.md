@@ -1,6 +1,9 @@
-# Implementation Issues
+---
+status: active
+created: "2026-05-10"
+---
 
-Status: draft
+# Implementation Issues
 
 These are issue-ready slices for the initial `sdlc-kit` implementation.
 
