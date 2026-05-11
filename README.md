@@ -46,7 +46,10 @@ Current scaffold:
 ```sh
 bun install
 bun run sdlc --help
+bun run ci
 ```
+
+Development checks are intentionally small for now: TypeScript validation, Bun tests, and a CLI smoke test.
 
 ## Core Decisions
 
