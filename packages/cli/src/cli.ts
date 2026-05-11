@@ -522,8 +522,18 @@ function doctorWarnings(result: LoadProjectConfigResult): string[] {
     warnings.push("vercel preview checks are configured for the production environment; use preview or a non-production custom environment.");
   }
 
+  if (previewProvider === "cloudflare" && config.preview?.required_before_merge === true) {
+    if (config.preview.environment?.toLowerCase() === "production") {
+      warnings.push("cloudflare preview checks are configured for the production environment; use preview or a non-production environment.");
+    }
+    if (config.preview.require_preview_secrets !== true) {
+      warnings.push("cloudflare preview checks require explicit preview/prod binding separation confirmation.");
+    }
+  }
+
   if (
     previewProvider !== "none" &&
+    previewProvider !== "cloudflare" &&
     config.preview?.required_before_merge === true &&
     config.preview.require_preview_secrets !== true
   ) {

@@ -6,7 +6,7 @@ Initial built-in adapters:
 
 - GitHub tracker adapter: `adapters/github`
 - Vercel preview adapter: `adapters/vercel`
-- Cloudflare preview adapter
+- Cloudflare preview adapter: `adapters/cloudflare`
 - Portless local route adapter
 - Codex/gstack workflow adapters
 

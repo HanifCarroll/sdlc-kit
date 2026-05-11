@@ -73,3 +73,5 @@ Supported providers are `github`, `vercel`, `cloudflare`, `portless`, and `none`
 Unsupported keys fail validation so misspelled contract fields do not silently drift.
 
 For Vercel, preview verification must not point at `production`. Use `preview` for standard Vercel preview deployments or a non-production custom environment when the project has one.
+
+For Cloudflare, preview verification must also confirm preview/prod binding separation. Pages preview deployments and Workers preview URLs can mirror production code, but preview secrets, bindings, data stores, and Access rules should be intentionally separated or explicitly accepted before merge.
