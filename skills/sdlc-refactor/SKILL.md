@@ -1,6 +1,6 @@
 ---
 name: sdlc-refactor
-description: Issue-first refactor workflow for broad or focused code improvements. Use when the user wants to improve structure, reduce duplication, simplify code, improve testability, change module boundaries, pay down architecture debt, or plan a safe refactor with GitHub issues, local docs, tests, gstack review, and Superpowers escalation when needed.
+description: Issue-first refactor workflow for broad or focused code improvements. Use when the user wants to improve structure, reduce duplication, simplify code, improve testability, change module boundaries, or pay down architecture debt with durable safety evidence.
 ---
 
 # SDLC Refactor Workflow
@@ -11,12 +11,9 @@ Use this skill for refactors where behavior should usually remain unchanged unle
 
 - GitHub Issues are the canonical work queue.
 - Local docs hold heavier reasoning: ADRs, architecture notes, refactor plans, and implementation logs.
-- Prefer existing skills:
-  - Matt: `request-refactor-plan`, `improve-codebase-architecture`, `to-issues`, `tdd`
-  - gstack: `gstack-plan-eng-review`, `gstack-autoplan`, `gstack-review`, `gstack-qa`, `gstack-ship`
-  - Cleanup: `/simplify` as the default reuse, quality, and efficiency pass on nontrivial refactor diffs
-  - Superpowers: `writing-plans`, `executing-plans`, `test-driven-development`, `using-git-worktrees`, `subagent-driven-development`
-- Ask before broad refactors, heavy mode, or implementation.
+- Behavior preservation is the main contract. Tests, evals, QA, or characterization evidence must prove it.
+- Use `sdlc blueprint`, `sdlc worktree`, `sdlc qa record`, `sdlc drift`, and `sdlc closeout` where they fit the issue.
+- Ask before broad refactors, behavior changes, or implementation when scope is unclear.
 
 ## Intake
 
@@ -32,8 +29,9 @@ Capture:
 - Behavior that must remain unchanged
 - Files/modules likely affected
 - Risk areas
-- Existing tests
+- Existing tests/evals
 - Acceptance criteria
+- Docs or ADRs that describe the current boundary
 
 ## Issue First
 
@@ -69,48 +67,32 @@ Minimum issue body:
 - [ ] Behavior unchanged evidence recorded.
 ```
 
-Respect `docs/agents/triage-labels.md` if present. Otherwise suggest `refactor` and `needs-triage`.
+Respect repo label conventions if present. Otherwise suggest `refactor` and `needs-triage`.
 
 ## Plan
 
 For focused refactors:
 
-- Use `request-refactor-plan` when the sequence is not obvious.
-- Use Matt `tdd` to add characterization or regression tests before moving code.
-- Use `/simplify` when the current diff may contain avoidable duplication, unnecessary abstraction, or inefficient work.
-- Use `gstack-plan-eng-review` when risk or coupling is nontrivial.
+- Identify the exact smell or boundary to improve.
+- Add characterization or regression tests before moving code when existing proof is weak.
+- Record the planned change and verification commands in the issue or blueprint.
 
 For broad refactors:
 
-- Use `improve-codebase-architecture` to find and rank candidates.
-- Convert accepted candidates to issues with `to-issues`.
-- Use `gstack-autoplan` or `gstack-plan-eng-review` on the chosen plan.
+- Inspect the affected code paths and rank the refactor candidates.
+- Split accepted candidates into issue-sized slices.
+- Run `sdlc blueprint <issue> --sync` for each nontrivial slice.
 - Write or update ADRs when changing architecture boundaries.
 
-Record plan/ADR links in the issue.
-
-## Choose Implementation Mode
-
-Use the light path for a focused low-risk refactor with tests.
-
-Recommend Superpowers and ask when:
-
-- Multiple modules or workstreams are involved.
-- Behavior preservation is critical.
-- The area has weak tests.
-- The refactor touches architecture boundaries.
-- Worktrees/subagents would reduce risk.
-
-Use Superpowers `writing-plans` before code for broad refactors. Use `test-driven-development` or Matt `tdd` to protect behavior before edits.
+Record plan and ADR links in the issue.
 
 ## Implement
 
-- Make small commits or logical units.
+- Make small logical changes.
 - Keep structural changes separate from behavior changes when possible.
 - Do not mix unrelated cleanup into the refactor.
-- Use `/simplify` on the latest diff before final review unless the change is trivial.
-- Update diagrams/comments near changed architecture if they exist.
-- If the refactor reveals behavior changes are needed, stop and update the issue.
+- Update diagrams, comments, docs, or capability notes near changed architecture if they exist.
+- If the refactor reveals behavior changes are needed, stop and update the issue before proceeding.
 
 ## Verify And Close
 
@@ -118,13 +100,15 @@ Verification must prove either behavior unchanged or explicitly changed by the i
 
 Run:
 
-- Characterization/regression tests.
-- Relevant full suite.
-- `gstack-review`.
-- `gstack-qa` if user-facing behavior could be affected.
-- `gstack-ship` when ready.
+- characterization/regression tests
+- relevant full suite
+- build/typecheck/lint commands configured in the repo
+- QA when user-facing behavior could be affected
+- `sdlc drift` when mappings exist
 
-Close or update the issue with:
+Capture screenshots/videos when a visual or interactive surface could have regressed. Record evidence with `sdlc qa record`.
+
+Closeout should include:
 
 ```markdown
 ## Refactor Complete
@@ -132,10 +116,10 @@ Changed structure: ...
 Behavior: unchanged / changed as documented
 
 ## Verification
-- [ ] Characterization/regression tests:
-- [ ] Full relevant suite:
-- [ ] Review:
-- [ ] QA:
+- Characterization/regression tests:
+- Full relevant suite:
+- Review:
+- QA:
 
 ## Follow-ups
 - ...

@@ -1,6 +1,6 @@
 ---
 name: sdlc-triage
-description: Issue-first triage workflow for ambiguous incoming work. Use when the user reports unclear work, vague feedback, a possible bug, a possible feature, technical debt, maintenance, or a client/user request that needs classification before implementation.
+description: Issue-first triage workflow for ambiguous incoming work. Use when the user reports unclear work, vague feedback, a possible bug, a possible feature, technical debt, maintenance, or a request that needs classification before implementation.
 ---
 
 # SDLC Triage Workflow
@@ -11,12 +11,9 @@ Use this skill as the front door when the work is not clearly a bug, enhancement
 
 - GitHub Issues are the canonical work queue. Create or identify the issue before implementation.
 - Triage does not implement by default. It classifies, clarifies, labels, and routes.
-- Prefer existing skills:
-  - Matt Pocock style: `triage`, `triage-issue`, `to-issues`
-  - gstack: `gstack-office-hours`, `gstack-autoplan`, `gstack-plan-eng-review`, `gstack-plan-design-review`
-  - Cleanup: `/simplify` only if triage produces a small repo diff, such as issue templates or docs
-  - Superpowers: use only when the triaged work is broad or risky enough to need heavy mode
-- Ask before implementation or heavy mode.
+- Use repo-local docs, issue labels, `.sdlc/project.yml`, and existing capability docs as the source of truth.
+- Route to first-party `sdlc-kit` workflows only.
+- Ask before implementation unless the user has explicitly approved execution.
 
 ## Intake
 
@@ -25,7 +22,7 @@ Gather only what is missing:
 - What was observed or requested
 - Who is affected
 - Urgency and impact
-- Relevant links, screenshots, logs, branches, environments, or customer/client context
+- Relevant links, screenshots, logs, branches, environments, or user/customer context
 - Whether there is an existing issue, PR, doc, incident, or task
 
 If the user gave enough to classify the work, continue without over-questioning.
@@ -54,11 +51,11 @@ Unknown until triaged.
 - Missing info:
 
 ## Routing
-- Target SOP:
+- Target workflow:
 - Reason:
 ```
 
-Respect `docs/agents/triage-labels.md` if present. Otherwise suggest `needs-triage`.
+Respect repo label conventions if present. Otherwise suggest `needs-triage`.
 
 ## Classify
 
@@ -80,10 +77,10 @@ Mark the issue:
 
 - `ready` when acceptance criteria and next workflow are clear.
 - `needs-info` when one or two missing facts block routing.
-- `blocked` when an external dependency prevents progress.
+- `blocked` when a dependency prevents progress.
 - `split-needed` when the report contains multiple independent work items.
 
-If the work is too large or mixed, use `to-issues` or create child issues before implementation.
+If the work is too large or mixed, create child issues before implementation.
 
 ## Route
 
@@ -92,7 +89,7 @@ Update the issue with:
 ```markdown
 ## Triage Result
 Classification: ...
-Next SOP: ...
+Next workflow: ...
 Reason: ...
 
 ## Acceptance Criteria
@@ -106,11 +103,10 @@ Reason: ...
 - Supporting docs:
 ```
 
-Then invoke or recommend the target SOP.
+Then invoke or recommend the target `sdlc-kit` workflow.
 
 ## Close Or Park
 
 Close triage-only issues only when the work was split, routed, duplicated, rejected, or answered.
 
 Do not close an issue that still represents executable work. Move it to the correct workflow state instead.
-

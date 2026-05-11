@@ -11,12 +11,9 @@ Use this skill for non-product work that keeps the system healthy without primar
 
 - GitHub Issues are the canonical work queue. Create or identify the maintenance issue before implementation.
 - Local docs support upgrade notes, rollback plans, migration notes, and durable tooling decisions.
-- Prefer existing skills:
-  - Matt Pocock style: `triage`, `tdd`, `request-refactor-plan`
-  - gstack: `gstack-plan-devex-review`, `gstack-plan-eng-review`, `gstack-qa`, `gstack-review`, `gstack-ship`, `gstack-canary`
-  - Cleanup: `/simplify` for config/tooling reuse, quality, and efficiency cleanup on nontrivial maintenance diffs
-  - Superpowers: use for broad upgrades, risky migrations, weak-test areas, or multi-workstream maintenance
-- Ask before risky upgrades, broad churn, externally visible changes, or heavy mode.
+- Use `.sdlc/project.yml` for configured commands, docs paths, and provider expectations.
+- Use `sdlc blueprint`, `sdlc qa record`, `sdlc drift`, and `sdlc closeout` where they fit the issue.
+- Ask before risky upgrades, broad churn, public behavior changes, or implementation when scope is unclear.
 
 ## Intake
 
@@ -73,7 +70,7 @@ Minimum issue body:
 - [ ] ...
 ```
 
-Respect `docs/agents/triage-labels.md` if present. Otherwise suggest `maintenance` and `needs-triage`.
+Respect repo label conventions if present. Otherwise suggest `maintenance` and `needs-triage`.
 
 ## Plan
 
@@ -81,9 +78,9 @@ Choose the smallest safe change:
 
 - Keep dependency upgrades focused unless batching is safer.
 - Separate mechanical formatting from behavior or runtime changes when practical.
-- Use `gstack-plan-devex-review` for tooling, CLI, docs, setup, and developer workflow changes.
-- Use `gstack-plan-eng-review` for runtime, architecture, deployment, or migration risk.
-- Use Superpowers only when the maintenance spans multiple risky workstreams.
+- Use `sdlc blueprint <issue> --sync` for runtime, architecture, deployment, migration, or developer workflow risk.
+- Record rollback notes for upgrades and CI/deploy changes.
+- Add an ADR when the maintenance task changes a durable tooling or runtime policy.
 
 ## Implement
 
@@ -91,7 +88,7 @@ Choose the smallest safe change:
 - Update lockfiles intentionally.
 - Preserve existing behavior unless the issue explicitly changes it.
 - Do not mix unrelated cleanup into the maintenance task.
-- Use `/simplify` when config, scripts, or helper logic become duplicated or harder to maintain.
+- Update docs/templates/examples when the maintenance changes setup, command behavior, generated artifacts, or repo conventions.
 
 ## Verify And Close
 
@@ -103,15 +100,18 @@ Run the relevant checks:
 - build
 - CI workflow validation
 - smoke test, QA, deploy, or canary when runtime behavior could be affected
+- `sdlc drift` when mappings exist
 
-Close or update the issue with:
+Capture screenshots/videos only when the maintenance changes a visual or interactive surface. Record evidence with `sdlc qa record`.
+
+Closeout should include:
 
 ```markdown
 ## Maintenance Complete
 Changed: ...
 
 ## Verification
-- [ ] `{command}` -> {result}
+- `{command}` -> {result}
 
 ## Risk / Rollback
 - ...
@@ -121,4 +121,3 @@ Changed: ...
 ```
 
 If verification cannot prove safety, leave the issue open or blocked with the exact reason.
-
