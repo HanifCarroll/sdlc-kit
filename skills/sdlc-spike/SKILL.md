@@ -11,11 +11,8 @@ Use this skill when the goal is a decision or recommendation, not production imp
 
 - GitHub Issues are the canonical work queue. Create or identify the spike issue before investigation.
 - Local docs are supporting evidence for large findings, architecture notes, prototype notes, or decision records.
-- Prefer existing skills:
-  - Matt Pocock style: `to-prd`, `to-issues`, `grill-with-docs`, `improve-codebase-architecture`
-  - gstack: `gstack-office-hours`, `gstack-autoplan`, `gstack-plan-eng-review`, `gstack-plan-devex-review`, `gstack-benchmark`
-  - Cleanup: `/simplify` if a prototype or exploratory diff is worth keeping
-  - Superpowers: use only for large, risky, or multi-workstream investigation plans
+- Spikes produce decisions, not silent production changes.
+- Use `docs/plans/` for durable research or planning and `docs/adr/` when the decision becomes policy.
 - Ask before converting a spike into implementation.
 
 ## Intake
@@ -63,14 +60,14 @@ Minimum issue body:
 - Split into:
 ```
 
-Respect `docs/agents/triage-labels.md` if present. Otherwise suggest `spike` and `needs-triage`.
+Respect repo label conventions if present. Otherwise suggest `spike` and `needs-triage`.
 
 ## Investigate
 
 Use the lightest evidence that can answer the question:
 
 - Codebase reading for fit and integration points
-- Official docs or source repos for external libraries
+- Official docs or source repos for libraries and platforms
 - Small prototype only when reading is insufficient
 - Benchmark only when performance or cost is central
 - Architecture sketch or ADR when the decision changes boundaries
@@ -106,11 +103,10 @@ Decision: ...
 - ...
 ```
 
-Use `to-issues` when the accepted work should become executable implementation slices.
+When accepted work should become executable implementation, create follow-up issues and link them from the spike.
 
 ## Verify And Close
 
 Verification for a spike is evidence quality, not shipped behavior.
 
-Close the issue only after the decision, links, and follow-up issues are recorded. If the spike produced code that will stay, run `/simplify`, relevant tests, and review before treating that code as production-ready.
-
+Close the issue only after the decision, links, and follow-up issues are recorded. If the spike produced code that will stay, run relevant tests, review the diff, and record evidence before treating that code as production-ready.

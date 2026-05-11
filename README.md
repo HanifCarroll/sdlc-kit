@@ -89,7 +89,7 @@ Implemented CLI surface:
 
 ## Skill System
 
-The target first-party skill taxonomy and essential v1 set are documented in [docs/concepts/skills.md](docs/concepts/skills.md).
+The target first-party skill taxonomy and essential v1 set are documented in [docs/concepts/skills.md](docs/concepts/skills.md). Public skill authoring rules are documented in [docs/concepts/skill-authoring.md](docs/concepts/skill-authoring.md).
 
 ## Project Manifest
 

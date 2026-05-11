@@ -1,7 +1,7 @@
 interface:
   display_name: "SDLC Feature"
   short_description: "Issue-first feature workflow"
-  default_prompt: "Use $sdlc-feature to define this new feature, create GitHub issues, choose the right gstack review path, and preserve implementation and verification records."
+  default_prompt: "Use $sdlc-feature to define this new feature, create GitHub issues, plan the slices, and preserve implementation and verification records."
 
 policy:
   allow_implicit_invocation: true

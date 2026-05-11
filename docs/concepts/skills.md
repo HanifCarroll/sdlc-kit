@@ -1,6 +1,6 @@
 # First-Party Skill System
 
-`sdlc-kit` skills are the human and agent workflows that operate against the repo-local SDLC contract. They are first-party skills: they may be inspired by other engineering systems, but they should not require another skill pack to understand or complete the lifecycle.
+`sdlc-kit` skills are the human and agent workflows that operate against the repo-local SDLC contract. They are first-party skills: they should be complete enough to understand and complete the lifecycle from this repo alone.
 
 The goal is a complete system that works for real projects and is packaged so other teams can adopt the same rails.
 
@@ -10,7 +10,7 @@ This document describes the target skill taxonomy, not a guarantee that every sk
 
 - Skills model SDLC responsibilities, not vendor names or agent products.
 - Each skill should be useful on its own, but fit cleanly into the full issue-to-closeout loop.
-- Optional integrations can accelerate the work, but `sdlc-kit` artifacts remain the durable record.
+- Public skill docs, examples, prompts, and metadata should describe the `sdlc-kit` workflow directly.
 - The CLI records structured evidence and state. Skills own judgment, workflow, capture, and review discipline.
 - Builder and verifier responsibilities should stay separate when the work is risky enough to justify it.
 - QA evidence should include screenshots and videos when the changed surface is visual or interactive.
@@ -136,6 +136,6 @@ Those responsibilities belong to `sdlc-qa` and adjacent verification skills. A Q
 
 This keeps the CLI simple and auditable while making the skill responsible for the work that requires judgment.
 
-## Relationship To Other Skill Systems
+## Authoring Standard
 
-`sdlc-kit` can integrate with other tools, agents, and skill packs, but the first-party skills should be able to stand alone. External systems may be cited as inspiration, optional acceleration, or migration aids, but the default OSS distribution should not require users to install them separately before the SDLC loop works.
+The detailed authoring contract for public skills is documented in [skill-authoring.md](skill-authoring.md).
