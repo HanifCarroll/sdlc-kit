@@ -90,6 +90,34 @@ preview:
     );
   });
 
+  test("doctor warns when Cloudflare preview binding separation is not confirmed", () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), "sdlc-kit-cloudflare-preview-"));
+    mkdirSync(join(projectRoot, ".sdlc"));
+    writeFileSync(
+      join(projectRoot, ".sdlc", "project.yml"),
+      `version: 1
+project: fixture
+preview:
+  provider: cloudflare
+  required_before_merge: true
+  environment: production
+  require_preview_secrets: false
+`,
+    );
+    const capture = createOutputCapture();
+
+    expect(runCli(["doctor"], { cwd: projectRoot, output: capture.output })).toBe(0);
+    expect(capture.stdout[0]).toContain(
+      "cloudflare preview checks are configured for the production environment",
+    );
+    expect(capture.stdout[0]).toContain(
+      "cloudflare preview checks require explicit preview/prod binding separation confirmation",
+    );
+    expect(capture.stdout[0]).not.toContain(
+      "preview is required before merge but preview secret/binding confirmation is not required",
+    );
+  });
+
   test("init writes new-project artifacts", () => {
     const projectRoot = mkdtempSync(join(tmpdir(), "sdlc-kit-init-"));
     const capture = createOutputCapture();
